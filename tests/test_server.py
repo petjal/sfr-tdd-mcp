@@ -21,6 +21,7 @@ class TestFastMCPService:
         assert result.evaporator_wall_temp_c > 650.0
         assert result.condenser_wall_temp_c < 650.0
         assert result.delta_t_c == pytest.approx(2.5445, rel=1e-3)
+        # Source: independent hand calc (Opus audit 2026-10-06)
         assert result.vapor_reynolds_number == pytest.approx(501.8, rel=2e-3)
         assert math.isclose(
             result.evaporator_wall_temp_c - result.condenser_wall_temp_c,

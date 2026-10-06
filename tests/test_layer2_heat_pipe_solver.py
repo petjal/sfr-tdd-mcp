@@ -115,6 +115,7 @@ class TestThermalResistanceNetwork:
     def test_thermal_resistance_network_elements_500w_650c(self):
         res = calculate_thermal_resistance_network(500.0, 650.0)
         assert res["r_wall_e"] == pytest.approx(8.211e-4, rel=1e-2)
+        # Source: independent hand calc (Opus audit 2026-10-06)
         assert res["r_wick_e"] == pytest.approx(4.8423e-4, rel=1e-3)
         assert res["r_vapor"] == pytest.approx(2.4785e-3, rel=1e-3)
         assert res["r_wick_c"] == pytest.approx(4.8423e-4, rel=1e-3)
@@ -123,6 +124,7 @@ class TestThermalResistanceNetwork:
 
     def test_channel_temperature_drops_and_conductance(self):
         t_evap, t_cond, delta_t = calculate_channel_temperatures(500.0, 650.0)
+        # Source: independent hand calc (Opus audit 2026-10-06)
         assert delta_t == pytest.approx(2.5445, rel=1e-3)
         # Interface boundary consistency: T_evap > T_sat > T_cond
         assert t_evap > 650.0
