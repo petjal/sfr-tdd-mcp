@@ -3,10 +3,11 @@ from typing import Any
 from sfr_mcp.exceptions import DomainBoundaryError
 
 # Absolute physical constants and phase thresholds
-ABSOLUTE_ZERO_C = -273.15
-SODIUM_MELTING_POINT_C = 97.80
-SODIUM_BOILING_POINT_1ATM_C = 883.00
-BOUNDARY_FLOAT_EPSILON = 1e-7
+ABSOLUTE_ZERO_C: float = -273.15
+SODIUM_MELTING_POINT_C: float = 97.80
+SODIUM_BOILING_POINT_1ATM_C: float = 883.00
+BOUNDARY_FLOAT_EPSILON: float = 1e-7
+
 
 def _validate_numeric(val: Any, name: str) -> float:
     """Enforce numerical finiteness and reject non-real/boolean data types."""
@@ -55,22 +56,31 @@ def validate_mass_flow(flow_kg_s: Any) -> float:
     return m
 
 
-def validate_temperature(temp_c: Any) -> float:
+def validate_real_temperature(temp_c: Any) -> float:
     """
-    Validate liquid sodium temperature [°C] against single-phase thermodynamic invariants.
+    Validate universal temperature [°C] against the third law of thermodynamics.
+    
+    Invariant: Temperature must be strictly above absolute zero (-273.15°C / 0 K).
+    """
+    t = _validate_numeric(temp_c, "temp_c")
+    if t <= ABSOLUTE_ZERO_C:
+        raise DomainBoundaryError(
+            f"Temperature {t:.2f}°C is at or below absolute zero (-273.15°C)."
+        )
+    return t
+
+
+def validate_liquid_sodium_temperature(temp_c: Any) -> float:
+    """
+    Validate liquid sodium coolant temperature [°C] against single-phase thermodynamic invariants.
     
     Invariants:
     1. Temperature must be strictly above absolute zero (-273.15°C / 0 K).
     2. Temperature must be strictly above the solid melting point (97.80°C).
     3. Temperature must be strictly below the 1-atm boiling point (883.00°C).
     """
-    t = _validate_numeric(temp_c, "temp_c")
+    t = validate_real_temperature(temp_c)
     
-    if t <= ABSOLUTE_ZERO_C:
-        raise DomainBoundaryError(
-            f"Temperature {t:.2f}°C is at or below absolute zero (-273.15°C)."
-        )
-        
     if t <= SODIUM_MELTING_POINT_C + BOUNDARY_FLOAT_EPSILON:
         raise DomainBoundaryError(
             f"Temperature {t:.2f}°C violates sodium freezing threshold (97.8°C)."
@@ -84,6 +94,10 @@ def validate_temperature(temp_c: Any) -> float:
     return t
 
 
+# Backward-compatible alias for liquid sodium temperature validation
+validate_temperature = validate_liquid_sodium_temperature
+
+
 def validate_core_inputs(
     power_mwth: Any, flow_kg_s: Any, inlet_temp_c: Any
 ) -> tuple[float, float, float]:
@@ -94,5 +108,5 @@ def validate_core_inputs(
     """
     p = validate_thermal_power(power_mwth)
     m = validate_mass_flow(flow_kg_s)
-    t = validate_temperature(inlet_temp_c)
+    t = validate_liquid_sodium_temperature(inlet_temp_c)
     return p, m, t

@@ -64,20 +64,20 @@ class TestLiquidSodiumDensity:
     """
 
     @pytest.mark.parametrize(
-        "temp_c, anl_expected_rho",
+        "temp_c, anl_hornung_expected_rho",
         [
-            (100.0, 925.7),
-            (250.0, 890.3),
-            (400.0, 854.1),
-            (550.0, 817.0),
-            (700.0, 778.7),
-            (850.0, 738.9),
+            (100.0, 925.77),
+            (250.0, 892.48),
+            (400.0, 857.73),
+            (550.0, 822.93),
+            (700.0, 787.29),
+            (850.0, 750.69),
         ],
     )
-    def test_density_anl_benchmark_parity(self, temp_c, anl_expected_rho):
-        """Verify liquid sodium density matches ANL/RE-95/2 tabulated benchmarks within 0.5%."""
+    def test_density_anl_benchmark_parity(self, temp_c, anl_hornung_expected_rho):
+        """Verify liquid sodium density matches ANL/RE-95/2 Hornung formulation within 0.1%."""
         computed = liquid_sodium_density(temp_c)
-        assert computed == pytest.approx(anl_expected_rho, rel=5e-3)
+        assert computed == pytest.approx(anl_hornung_expected_rho, rel=1e-3)
 
     def test_density_strictly_monotonically_decreasing(self):
         """Universal physical law: Thermal expansion requires d(rho)/dT < 0 everywhere in liquid phase."""
