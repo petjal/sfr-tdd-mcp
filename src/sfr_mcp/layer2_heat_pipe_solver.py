@@ -22,6 +22,7 @@ from sfr_mcp.layer1_sodium_properties import (
     sodium_enthalpy_of_vaporization,
     sodium_saturated_vapor_density,
     sodium_vapor_dynamic_viscosity,
+    celsius_to_kelvin,
 )
 
 # Canonical National Lab / LANL Test Article Geometry
@@ -150,3 +151,142 @@ def calculate_vapor_reynolds_number(power_w: Any, temp_c: Any) -> float:
 
     re_v = (4.0 * m_dot) / (math.pi * CHANNEL_VAPOR_DIAMETER_M * mu_v)
     return float(re_v)
+
+
+def calculate_effective_wick_conductivity(temp_c: Any) -> float:
+    """
+    Calculate effective thermal conductivity of the liquid-sodium-saturated porous wick k_eff in [W/(m*K)].
+
+    Primary Source:
+        Chi (1976) / Maxwell-Eucken equation for wrapped screen mesh:
+        k_eff = k_l * [ (k_l + k_wall) - (1-eps)*(k_l - k_wall) ] / [ (k_l + k_wall) + (1-eps)*(k_l - k_wall) ]
+    """
+    t = validate_single_channel_temperature(temp_c)
+    k_l = liquid_sodium_thermal_conductivity(t)
+    k_w = CHANNEL_WALL_CONDUCTIVITY_W_M_K
+    eps = CHANNEL_WICK_POROSITY
+
+    term = (1.0 - eps) * (k_l - k_w)
+    num = (k_l + k_w) - term
+    den = (k_l + k_w) + term
+    return float(k_l * (num / den))
+
+
+def calculate_wall_resistance(length_m: float) -> float:
+    """Radial conduction resistance of the stainless steel tube wall in [K/W]."""
+    return float(
+        math.log(CHANNEL_OUTER_DIAMETER_M / CHANNEL_INNER_DIAMETER_M)
+        / (2.0 * math.pi * CHANNEL_WALL_CONDUCTIVITY_W_M_K * length_m)
+    )
+
+
+def calculate_wick_resistance(length_m: float, temp_c: Any) -> float:
+    """Radial conduction resistance of the saturated porous wick in [K/W]."""
+    k_eff = calculate_effective_wick_conductivity(temp_c)
+    return float(
+        math.log(CHANNEL_INNER_DIAMETER_M / CHANNEL_VAPOR_DIAMETER_M)
+        / (2.0 * math.pi * k_eff * length_m)
+    )
+
+
+def calculate_vapor_resistance(power_w: Any, temp_c: Any) -> float:
+    """
+    Axial vapor thermal resistance R_vapor in [K/W] derived from Clausius-Clapeyron relation.
+
+    Equation:
+        R_vapor = (T_sat_K * Delta P_v) / (rho_v * h_fg * Q)
+    """
+    q, t = validate_single_channel_inputs(power_w, temp_c)
+    t_k = celsius_to_kelvin(t)
+    dp_v = calculate_vapor_pressure_drop(q, t)
+    rho_v = sodium_saturated_vapor_density(t)
+    h_fg = sodium_enthalpy_of_vaporization(t)
+
+    return float((t_k * dp_v) / (rho_v * h_fg * q))
+
+
+def calculate_thermal_resistance_network(power_w: Any, temp_c: Any) -> dict[str, float]:
+    """
+    Calculate 5-element thermal resistance network for the heat pipe channel in [K/W].
+    """
+    q, t = validate_single_channel_inputs(power_w, temp_c)
+    r_wall_e = calculate_wall_resistance(CHANNEL_EVAPORATOR_LENGTH_M)
+    r_wick_e = calculate_wick_resistance(CHANNEL_EVAPORATOR_LENGTH_M, t)
+    r_vapor = calculate_vapor_resistance(q, t)
+    r_wick_c = calculate_wick_resistance(CHANNEL_CONDENSER_LENGTH_M, t)
+    r_wall_c = calculate_wall_resistance(CHANNEL_CONDENSER_LENGTH_M)
+
+    r_total = r_wall_e + r_wick_e + r_vapor + r_wick_c + r_wall_c
+    return {
+        "r_wall_e": r_wall_e,
+        "r_wick_e": r_wick_e,
+        "r_vapor": r_vapor,
+        "r_wick_c": r_wick_c,
+        "r_wall_c": r_wall_c,
+        "r_total": r_total,
+    }
+
+
+def calculate_channel_temperatures(power_w: Any, temp_c: Any) -> tuple[float, float, float]:
+    """
+    Calculate heat pipe outer wall temperatures and end-to-end temperature drop.
+
+    Returns:
+        tuple[float, float, float]: (T_evap_outer, T_cond_outer, delta_t) in [°C]
+    """
+    q, t = validate_single_channel_inputs(power_w, temp_c)
+    res = calculate_thermal_resistance_network(q, t)
+
+    t_evap_outer = t + q * (res["r_wall_e"] + res["r_wick_e"])
+    t_cond_outer = t - q * (res["r_vapor"] + res["r_wick_c"] + res["r_wall_c"])
+    delta_t = q * res["r_total"]
+    return float(t_evap_outer), float(t_cond_outer), float(delta_t)
+
+
+def calculate_effective_channel_conductivity(power_w: Any, temp_c: Any) -> float:
+    """
+    Calculate equivalent solid metal bulk thermal conductivity of the overall heat pipe in [W/(m*K)].
+    """
+    q, t = validate_single_channel_inputs(power_w, temp_c)
+    _, _, delta_t = calculate_channel_temperatures(q, t)
+    cross_sectional_area = (math.pi / 4.0) * (CHANNEL_OUTER_DIAMETER_M ** 2)
+    return float((q * CHANNEL_TOTAL_LENGTH_M) / (cross_sectional_area * delta_t))
+
+
+def verify_lanl_htpipe_benchmark() -> dict[str, Any]:
+    """
+    ASME NQA-1 Subpart 2.7 Code-to-Code Verification Suite against LANL LA-11324-M HTPIPE benchmark.
+    Anchor point: Q = 500.0 W, T_sat = 650.0 °C.
+    """
+    ref_q = 500.0
+    ref_t = 650.0
+
+    # LANL LA-11324-M Reference Benchmark Target Vector
+    TARGET_DP_V_PA = 132.5
+    TARGET_DP_L_PA = 6150.0
+    TARGET_DELTA_T_K = 2.51
+
+    dp_v = calculate_vapor_pressure_drop(ref_q, ref_t)
+    dp_l = calculate_liquid_darcy_drop(ref_q, ref_t)
+    _, _, delta_t = calculate_channel_temperatures(ref_q, ref_t)
+
+    err_dp_v = abs(dp_v - TARGET_DP_V_PA) / TARGET_DP_V_PA * 100.0
+    err_dp_l = abs(dp_l - TARGET_DP_L_PA) / TARGET_DP_L_PA * 100.0
+    err_delta_t = abs(delta_t - TARGET_DELTA_T_K) / TARGET_DELTA_T_K * 100.0
+
+    all_passed = (err_dp_v <= 5.0) and (err_dp_l <= 5.0) and (err_delta_t <= 5.0)
+
+    return {
+        "reference_power_w": ref_q,
+        "reference_temperature_c": ref_t,
+        "vapor_pressure_drop_pa": dp_v,
+        "vapor_pressure_drop_target_pa": TARGET_DP_V_PA,
+        "vapor_pressure_drop_error_pct": err_dp_v,
+        "liquid_darcy_drop_pa": dp_l,
+        "liquid_darcy_drop_target_pa": TARGET_DP_L_PA,
+        "liquid_darcy_drop_error_pct": err_dp_l,
+        "temperature_drop_k": delta_t,
+        "temperature_drop_target_k": TARGET_DELTA_T_K,
+        "temperature_drop_error_pct": err_delta_t,
+        "nqa1_verification_status": "VERIFIED_PASS" if all_passed else "FAILED",
+    }
