@@ -41,9 +41,16 @@ Across the corridor, the vapor flow is laminar (Re_v < 800) and Ma < 0.09, so th
 
 ## Verification status (plain version)
 
-- **Liquid properties:** formulas match the ANL/RE-95/2 correlations. The tests compare against the correlations evaluated at grid points, not yet against the report's printed tables. Adding those table rows is open work.
+- **Properties:** every ANL/RE-95/2 equation used by the solver (rho_l, rho_g, P_sat, dH_v, sigma, mu_l, k_l) was checked against the scanned report pages, and the citations give section, equation and page. Liquid and vapor density are also tested against printed Table 1.3-1 (p. 87) at 900 K and 1000 K.
 - **Layer 2:** the tests check against an independent hand calculation at 500 W / 650 °C, done outside the codebase. This is a regression anchor, **not** a code-to-code benchmark against LANL HTPIPE or experimental data.
 - **No NQA-1 qualification is claimed.**
+
+## Uncertainty
+
+- **Surface tension:** ANL states +/-11% (2 sigma). The capillary margin scales with sigma, so the corridor minimum M_cap of 1.48 becomes about 1.32 at the low end. That is still above 1.
+- **Vapor viscosity:** this is PROVISIONAL. ANL/RE-95/2 gives no vapor viscosity. A Chapman-Enskog estimate for monomer Na gives 1.56e-5 Pa s at 650 C, against the code's 2.06e-5. That is roughly a 25% spread. Sensitivity with mu_v varied from x0.70 to x1.15:
+  - M_cap changes by less than 1%, because the vapor drop is about 2% of the total pressure drop. The capillary conclusion is insensitive to mu_v.
+  - End-to-end delta_T at 500 W / 650 C ranges from 2.17 to 2.73 K, because R_vapor is about half of the thermal resistance. Treat delta_T as +/-15%.
 
 ## How it was built
 
