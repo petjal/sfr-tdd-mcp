@@ -13,6 +13,8 @@ from sfr_mcp.layer2_heat_pipe_solver import (
     calculate_channel_temperatures,
     calculate_effective_channel_conductivity,
     calculate_capillary_margin,
+    calculate_vapor_reynolds_number,
+    calculate_vapor_mach_number,
 )
 
 mcp = FastMCP("sfr-heatpipe-mcp")
@@ -55,17 +57,19 @@ class HeatPipeAnalysisResult(BaseModel):
     )
     effective_thermal_conductivity_w_m_k: float = Field(
         ...,
-        description="Equivalent bulk solid metal thermal conductivity [W/(m*K)]",
-        gt=100000.0,
+        description="Equivalent bulk conductivity Q*L_total/(A_outer*delta_T) [W/(m*K)]",
+        gt=0.0,
     )
     capillary_margin: float = Field(
         ...,
         description="Capillary safety pumping margin M_cap = Delta P_cap,max / Delta P_tot [-]",
         ge=1.0,
     )
+    vapor_reynolds_number: float = Field(..., description="Axial vapor Reynolds number [-]", gt=0.0)
+    vapor_mach_number: float = Field(..., description="Axial vapor Mach number [-]", gt=0.0)
     flow_regime: str = Field(
-        default="LAMINAR_SUBSONIC",
-        description="Hydrodynamic vapor flow regime (Re_v < 1000, Ma < 0.09)",
+        ...,
+        description="Computed: LAMINAR if Re_v < 2300, SUBSONIC_INCOMPRESSIBLE if Ma < 0.2",
     )
     operating_status: str = Field(
         default="NOMINAL_STEADY_STATE",
@@ -78,7 +82,7 @@ def calculate_heatpipe_heat_transfer(power_w: float, temp_c: float) -> HeatPipeA
     """
     Calculate high-precision steady-state heat transfer and capillary limits for a single sodium heat pipe.
 
-    Evaluates a canonical national lab horizontal test article (Do=19.05mm, Lt=2.5m, sintered mesh)
+    Evaluates a frozen horizontal test-article geometry (Do=19.05mm, Lt=2.5m, sintered powder wick)
     delivering heat from a fast microreactor core channel to an sCO2 power conversion interface.
 
     Parameters:
@@ -96,6 +100,10 @@ def calculate_heatpipe_heat_transfer(power_w: float, temp_c: float) -> HeatPipeA
     t_evap_outer, t_cond_outer, delta_t = calculate_channel_temperatures(q, t)
     k_eff_channel = calculate_effective_channel_conductivity(q, t)
     capillary_margin = calculate_capillary_margin(q, t)
+    re_v = calculate_vapor_reynolds_number(q, t)
+    ma_v = calculate_vapor_mach_number(q, t)
+    laminar = "LAMINAR" if re_v < 2300.0 else "TURBULENT"
+    compress = "SUBSONIC" if ma_v < 0.2 else "COMPRESSIBLE"
 
     return HeatPipeAnalysisResult(
         power_w=q,
@@ -106,7 +114,9 @@ def calculate_heatpipe_heat_transfer(power_w: float, temp_c: float) -> HeatPipeA
         delta_t_c=delta_t,
         effective_thermal_conductivity_w_m_k=k_eff_channel,
         capillary_margin=capillary_margin,
-        flow_regime="LAMINAR_SUBSONIC",
+        vapor_reynolds_number=re_v,
+        vapor_mach_number=ma_v,
+        flow_regime=f"{laminar}_{compress}",
         operating_status="NOMINAL_STEADY_STATE",
     )
 

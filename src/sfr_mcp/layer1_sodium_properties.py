@@ -189,43 +189,36 @@ def sodium_enthalpy_of_vaporization(temp_c: Any) -> float:
 
 def sodium_saturated_vapor_density(temp_c: Any) -> float:
     """
-    Evaluate dimerized saturated sodium vapor density rho_v(T) in [kg/m^3].
+    Evaluate saturated sodium vapor density rho_v(T) in [kg/m^3].
 
     Primary Source:
-        ANL/RE-95/2 chemical equilibrium model: 2Na <=> Na2.
-        Ewing et al. (1967) / Fink & Leibowitz (1995).
-    Formulation:
-        log10(K_p) = -4.320 + 3890.0 / T_K  (K_p in atm^-1)
-        Solves quadratic equilibrium for monomer and dimer partial pressures,
-        computes effective mixture molar mass M_avg, and evaluates rho_v = (P*M_avg)/(R*T).
+        ANL/RE-95/2 (Fink & Leibowitz, 1995) method: vapor density from the
+        thermodynamic (Clausius-Clapeyron) relation
+            (dP/dT)_sat = dH_v / (T * (1/rho_g - 1/rho_l))
+        =>  rho_g = 1 / ( dH_v / (T * dP/dT) + 1/rho_l )
+        with dP/dT taken analytically from the ANL P_sat correlation:
+            dP/dT = P * (12633.73/T^2 - 0.4672/T)
+        Dimerization is captured implicitly through dH_v (Golden & Tokar fit).
     """
     t_c = validate_liquid_sodium_temperature(temp_c)
     t_k = celsius_to_kelvin(t_c)
     psat = sodium_saturated_vapor_pressure(t_c)
-    p_atm = psat / ATMOSPHERIC_PRESSURE_PA
-
-    log10_kp = -4.320 + 3890.0 / t_k
-    kp = 10.0 ** log10_kp
-
-    # Quadratic equilibrium: kp * p1^2 + p1 - p_atm = 0
-    p1 = (-1.0 + math.sqrt(1.0 + 4.0 * kp * p_atm)) / (2.0 * kp)
-    p2 = p_atm - p1
-
-    m1 = SODIUM_MONOMER_MOLAR_MASS_KG_MOL
-    m2 = 2.0 * m1
-    m_avg = (p1 * m1 + p2 * m2) / p_atm
-
-    rho_v = (psat * m_avg) / (UNIVERSAL_GAS_CONSTANT_R * t_k)
-    return float(rho_v)
+    dp_dt = psat * (12633.73 / t_k ** 2 - 0.4672 / t_k)
+    h_fg = sodium_enthalpy_of_vaporization(t_c)
+    rho_l = liquid_sodium_mass_density(t_c)
+    return float(1.0 / (h_fg / (t_k * dp_dt) + 1.0 / rho_l))
 
 
 def sodium_vapor_dynamic_viscosity(temp_c: Any) -> float:
     """
     Evaluate sodium vapor dynamic viscosity mu_v(T) in [Pa*s].
 
-    Primary Source:
-        ANL/RE-95/2 & Chapman-Enskog / Vargaftik dilute sodium vapor relation:
+    PROVISIONAL (source unverified, flagged by 2026-10-06 audit):
         mu_v(T) = 2.06e-5 * (T_K / 923.15)^0.75  [Pa*s]
+        This power-law fit is anchored at the 650 C design point and is NOT a
+        cited literature correlation. Replace with the vapor viscosity
+        correlation endorsed in ANL/RE-95/2 (Golden & Tokar, ANL-7323) and cite
+        the page. mu_v scales Delta P_v and R_vapor linearly.
     """
     t_c = validate_liquid_sodium_temperature(temp_c)
     t_k = celsius_to_kelvin(t_c)

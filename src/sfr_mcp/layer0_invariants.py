@@ -17,7 +17,7 @@ SODIUM_ATMOSPHERIC_BOIL_TEMP_C: float = 883.00
 HEAT_PIPE_MAX_POWER_KW: float = 150.0
 NUMERICAL_BOUNDARY_EPSILON: float = 1e-7
 
-# Single-channel benchmark operating corridor [LANL LA-11324-M sweet spot]
+# Single-channel operating corridor (nominal steady-state envelope)
 HEAT_PIPE_CORRIDOR_MIN_TEMP_C: float = 625.0
 HEAT_PIPE_CORRIDOR_MAX_TEMP_C: float = 750.0
 HEAT_PIPE_CORRIDOR_MIN_POWER_W: float = 50.0

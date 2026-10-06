@@ -2,7 +2,7 @@
 Layer 2: Steady-State Thermal Network & Hydrodynamic Capillary Solver.
 
 This module models a single-channel liquid sodium heat pipe on a horizontal
-national laboratory capillary test bench (matching LANL LA-11324-M conditions).
+laboratory capillary test-bench geometry (horizontal, steady state).
 
 All calculations inherit Layer 0 numerical and corridor guards and Layer 1
 constitutive thermophysical properties.
@@ -25,7 +25,8 @@ from sfr_mcp.layer1_sodium_properties import (
     celsius_to_kelvin,
 )
 
-# Canonical National Lab / LANL Test Article Geometry
+# Frozen test-article geometry (representative of liquid-metal heat pipe test articles;
+# not a specific published LANL article)
 CHANNEL_OUTER_DIAMETER_M: float = 19.05e-3
 CHANNEL_WALL_THICKNESS_M: float = 1.00e-3
 CHANNEL_INNER_DIAMETER_M: float = 17.05e-3
@@ -40,9 +41,16 @@ CHANNEL_EFFECTIVE_LENGTH_M: float = (
     + CHANNEL_ADIABATIC_LENGTH_M
     + 0.5 * CHANNEL_CONDENSER_LENGTH_M
 )
+# Wick: sintered stainless powder, single coherent specification.
+#   r_eff = 0.21 * d_p                          (Chi 1976, packed/sintered spheres)
+#   K     = d_p^2 eps^3 / (150 (1 - eps)^2)     (Blake-Kozeny / Kozeny-Carman)
 CHANNEL_WICK_POROSITY: float = 0.65
-CHANNEL_WICK_PORE_RADIUS_M: float = 25.0e-6
-CHANNEL_WICK_PERMEABILITY_M2: float = 1.50e-10
+CHANNEL_WICK_PARTICLE_DIAMETER_M: float = 100.0e-6
+CHANNEL_WICK_PORE_RADIUS_M: float = 0.21 * CHANNEL_WICK_PARTICLE_DIAMETER_M
+CHANNEL_WICK_PERMEABILITY_M2: float = (
+    CHANNEL_WICK_PARTICLE_DIAMETER_M ** 2 * CHANNEL_WICK_POROSITY ** 3
+    / (150.0 * (1.0 - CHANNEL_WICK_POROSITY) ** 2)
+)
 CHANNEL_WALL_CONDUCTIVITY_W_M_K: float = 21.5
 
 # Pre-computed Cross-Sectional Areas [m^2]
@@ -70,7 +78,7 @@ def calculate_capillary_head_max(temp_c: Any) -> float:
     """
     Calculate maximum capillary pumping head Delta P_cap,max in [Pa].
 
-    Young-Laplace Equation (pore radius r_eff = 25 um):
+    Young-Laplace Equation (pore radius r_eff = 0.21 * d_p = 21 um):
         Delta P_cap,max = 2 * sigma / r_eff
     """
     t = validate_single_channel_temperature(temp_c)
@@ -158,18 +166,15 @@ def calculate_effective_wick_conductivity(temp_c: Any) -> float:
     Calculate effective thermal conductivity of the liquid-sodium-saturated porous wick k_eff in [W/(m*K)].
 
     Primary Source:
-        Chi (1976) / Maxwell-Eucken equation for wrapped screen mesh:
-        k_eff = k_l * [ (k_l + k_wall) - (1-eps)*(k_l - k_wall) ] / [ (k_l + k_wall) + (1-eps)*(k_l - k_wall) ]
+        Chi (1976), sintered wick (Maxwell form), solid = stainless powder k_s:
+        k_eff = k_s * [2 + k_l/k_s - 2 eps (1 - k_l/k_s)] / [2 + k_l/k_s + eps (1 - k_l/k_s)]
     """
     t = validate_single_channel_temperature(temp_c)
     k_l = liquid_sodium_thermal_conductivity(t)
-    k_w = CHANNEL_WALL_CONDUCTIVITY_W_M_K
+    k_s = CHANNEL_WALL_CONDUCTIVITY_W_M_K
     eps = CHANNEL_WICK_POROSITY
-
-    term = (1.0 - eps) * (k_l - k_w)
-    num = (k_l + k_w) - term
-    den = (k_l + k_w) + term
-    return float(k_l * (num / den))
+    r = k_l / k_s
+    return float(k_s * (2.0 + r - 2.0 * eps * (1.0 - r)) / (2.0 + r + eps * (1.0 - r)))
 
 
 def calculate_wall_resistance(length_m: float) -> float:
@@ -253,40 +258,35 @@ def calculate_effective_channel_conductivity(power_w: Any, temp_c: Any) -> float
     return float((q * CHANNEL_TOTAL_LENGTH_M) / (cross_sectional_area * delta_t))
 
 
-def verify_lanl_htpipe_benchmark() -> dict[str, Any]:
+def calculate_vapor_mach_number(power_w: Any, temp_c: Any) -> float:
     """
-    ASME NQA-1 Subpart 2.7 Code-to-Code Verification Suite against LANL LA-11324-M HTPIPE benchmark.
-    Anchor point: Q = 500.0 W, T_sat = 650.0 °C.
+    Axial vapor Mach number at the evaporator exit [-].
+
+    Ma = v / c,  v = m_dot / (rho_v A_v),  c = sqrt(gamma R T / M), gamma = 5/3,
+    M = monomer molar mass (conservative: dimers lower c slightly).
     """
-    ref_q = 500.0
-    ref_t = 650.0
+    q, t = validate_single_channel_inputs(power_w, temp_c)
+    t_k = celsius_to_kelvin(t)
+    m_dot = calculate_mass_flow(q, t)
+    v = m_dot / (sodium_saturated_vapor_density(t) * VAPOR_CROSS_SECTIONAL_AREA_M2)
+    c = math.sqrt((5.0 / 3.0) * 8.314462 * t_k / 22.98977e-3)
+    return float(v / c)
 
-    # LANL LA-11324-M Reference Benchmark Target Vector
-    TARGET_DP_V_PA = 132.5
-    TARGET_DP_L_PA = 6150.0
-    TARGET_DELTA_T_K = 2.51
 
-    dp_v = calculate_vapor_pressure_drop(ref_q, ref_t)
-    dp_l = calculate_liquid_darcy_drop(ref_q, ref_t)
+def regression_anchor_500w_650c() -> dict[str, Any]:
+    """
+    Regression anchor at Q = 500 W, T_sat = 650 C.
+
+    Returns the code's computed values for comparison against an independent
+    hand calculation in the test suite. This is NOT a LANL/HTPIPE code-to-code
+    benchmark and carries no NQA-1 qualification claim.
+    """
+    ref_q, ref_t = 500.0, 650.0
     _, _, delta_t = calculate_channel_temperatures(ref_q, ref_t)
-
-    err_dp_v = abs(dp_v - TARGET_DP_V_PA) / TARGET_DP_V_PA * 100.0
-    err_dp_l = abs(dp_l - TARGET_DP_L_PA) / TARGET_DP_L_PA * 100.0
-    err_delta_t = abs(delta_t - TARGET_DELTA_T_K) / TARGET_DELTA_T_K * 100.0
-
-    all_passed = (err_dp_v <= 5.0) and (err_dp_l <= 5.0) and (err_delta_t <= 5.0)
-
     return {
         "reference_power_w": ref_q,
         "reference_temperature_c": ref_t,
-        "vapor_pressure_drop_pa": dp_v,
-        "vapor_pressure_drop_target_pa": TARGET_DP_V_PA,
-        "vapor_pressure_drop_error_pct": err_dp_v,
-        "liquid_darcy_drop_pa": dp_l,
-        "liquid_darcy_drop_target_pa": TARGET_DP_L_PA,
-        "liquid_darcy_drop_error_pct": err_dp_l,
+        "vapor_pressure_drop_pa": calculate_vapor_pressure_drop(ref_q, ref_t),
+        "liquid_darcy_drop_pa": calculate_liquid_darcy_drop(ref_q, ref_t),
         "temperature_drop_k": delta_t,
-        "temperature_drop_target_k": TARGET_DELTA_T_K,
-        "temperature_drop_error_pct": err_delta_t,
-        "nqa1_verification_status": "VERIFIED_PASS" if all_passed else "FAILED",
     }
