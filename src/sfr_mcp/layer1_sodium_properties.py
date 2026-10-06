@@ -97,7 +97,8 @@ def liquid_sodium_specific_heat(temp_c: Any) -> float:
     Evaluate saturated liquid sodium specific heat capacity C_p(T) in [J/(kg*K)].
 
     Primary Source:
-        ANL/RE-95/2 (Fink & Leibowitz, 1995), Section 1.1.1, p. 8.
+        ANL/RE-95/2 (Fink & Leibowitz, 1995), Section 1.1.2 polynomial approximation, p. 29
+        (UNVERIFIED vs scan; summary p. 13 gives tables. Not used by the solver.)
     Equation:
         C_p = 1658.2 - 0.84790*T_K + 4.4541e-4*(T_K^2) - 2.9926e6*(T_K^-2)  [J/(kg*K)]
     """
@@ -112,7 +113,8 @@ def liquid_sodium_surface_tension(temp_c: Any) -> float:
     Evaluate liquid sodium surface tension sigma(T) in [N/m].
 
     Primary Source:
-        ANL/RE-95/2 (Fink & Leibowitz, 1995), Section 1.3.4, p. 109.
+        ANL/RE-95/2 (Fink & Leibowitz, 1995), Section 1.6, Eq. 1, p. 170 (verified vs scan).
+        Stated uncertainty: +/-11% (2 sigma) in the experimental range.
     Equation:
         theta = 1 - T_K / 2503.7
         sigma = 0.2405 * (theta ** 1.126)  [N/m]
@@ -129,7 +131,7 @@ def liquid_sodium_dynamic_viscosity(temp_c: Any) -> float:
     Evaluate saturated liquid sodium dynamic viscosity mu_l(T) in [Pa*s].
 
     Primary Source:
-        ANL/RE-95/2 (Fink & Leibowitz, 1995), Section 1.3.2, p. 94.
+        ANL/RE-95/2 (Fink & Leibowitz, 1995), Section 2.2, Eq. 1, p. 207 (Shpil'rain; verified vs scan).
     Equation:
         ln(mu_l) = -6.4406 - 0.3958*ln(T_K) + 556.835/T_K  [Pa*s]
     """
@@ -144,7 +146,7 @@ def liquid_sodium_thermal_conductivity(temp_c: Any) -> float:
     Evaluate liquid sodium thermal conductivity k_l(T) in [W/(m*K)].
 
     Primary Source:
-        ANL/RE-95/2 (Fink & Leibowitz, 1995), Section 1.2.1, p. 43.
+        ANL/RE-95/2 (Fink & Leibowitz, 1995), Section 2.1, Eq. 1, p. 181 (verified vs scan).
     Equation:
         k_l = 124.67 - 0.11381*T_K + 5.5226e-5*(T_K^2) - 1.1842e-8*(T_K^3)  [W/(m*K)]
     """
@@ -159,7 +161,7 @@ def sodium_saturated_vapor_pressure(temp_c: Any) -> float:
     Evaluate saturated sodium vapor pressure P_sat(T) in Pascals [Pa].
 
     Primary Source:
-        ANL/RE-95/2 (Fink & Leibowitz, 1995), Section 1.4.1, p. 132.
+        ANL/RE-95/2 (Fink & Leibowitz, 1995), Section 1.2.1, p. 55 (coefficients not yet checked vs scan).
     Equation:
         ln(P_sat_MPa) = 11.9463 - 12633.73/T_K - 0.4672*ln(T_K)  [MPa]
         P_sat = P_sat_MPa * 1e6  [Pa]
@@ -175,7 +177,7 @@ def sodium_enthalpy_of_vaporization(temp_c: Any) -> float:
     Evaluate latent heat of vaporization h_fg(T) in Joules per kilogram [J/kg].
 
     Primary Source:
-        ANL/RE-95/2 (Fink & Leibowitz, 1995), Section 1.1.2, p. 18.
+        ANL/RE-95/2 (Fink & Leibowitz, 1995), Section 1.2.3, p. 65 (coefficients not yet checked vs scan).
     Equation:
         theta = 1 - T_K / 2503.7
         h_fg = 1000.0 * (393.37*theta + 4398.6*(theta^0.29302))  [J/kg]
@@ -216,9 +218,10 @@ def sodium_vapor_dynamic_viscosity(temp_c: Any) -> float:
     PROVISIONAL (source unverified, flagged by 2026-10-06 audit):
         mu_v(T) = 2.06e-5 * (T_K / 923.15)^0.75  [Pa*s]
         This power-law fit is anchored at the 650 C design point and is NOT a
-        cited literature correlation. Replace with the vapor viscosity
-        correlation endorsed in ANL/RE-95/2 (Golden & Tokar, ANL-7323) and cite
-        the page. mu_v scales Delta P_v and R_vapor linearly.
+        cited literature correlation. NOTE: ANL/RE-95/2 Sec. 2.2 (p. 207) covers
+        LIQUID viscosity only; it gives no vapor viscosity. ANL cites Vargaftik &
+        Yargin (alkali-metal vapor transport review) for vapor transport (p. 181).
+        Replace with a correlation from that source and cite the page. mu_v scales Delta P_v and R_vapor linearly.
     """
     t_c = validate_liquid_sodium_temperature(temp_c)
     t_k = celsius_to_kelvin(t_c)
