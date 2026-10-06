@@ -4,6 +4,10 @@ A small, steady-state calculator for a single horizontal sodium heat pipe, expos
 
 This is a portfolio demonstration. It is not a qualified design or safety code.
 
+## Background
+
+My first attempt at this project (`oklo-aurora-mcp`) contained AI-invented sources and a fake benchmark. I rebuilt it here, tracing every constant to a scanned page in ANL/RE-95/2 and pulling test oracles directly from the printed tables. The breakdown of the original errors is in [oklo-aurora-mcp/PROVENANCE.md](https://github.com/petjal/oklo-aurora-mcp/blob/master/PROVENANCE.md).
+
 ## Scope
 
 - **Corridor:** 625–750 °C saturation temperature, 50–750 W, horizontal (θ = 0°), steady state only. Inputs outside this corridor are rejected.
