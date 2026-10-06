@@ -3,6 +3,7 @@ import pytest
 from sfr_mcp.exceptions import DomainBoundaryError
 from sfr_mcp.layer1_sodium_properties import (
     celsius_to_kelvin,
+    liquid_sodium_mass_density,
     liquid_sodium_density,
     CELSIUS_TO_KELVIN_OFFSET,
 )
@@ -53,7 +54,7 @@ class TestCelsiusToKelvinConversion:
             celsius_to_kelvin(invalid_temp)
 
 
-class TestLiquidSodiumDensity:
+class TestLiquidSodiumMassDensity:
     """
     Thermophysical property test suite for liquid sodium mass density rho(T) [kg/m^3].
     
@@ -75,18 +76,20 @@ class TestLiquidSodiumDensity:
         ],
     )
     def test_density_anl_benchmark_parity(self, temp_c, anl_hornung_expected_rho):
-        """Verify liquid sodium density matches ANL/RE-95/2 Hornung formulation within 0.1%."""
-        computed = liquid_sodium_density(temp_c)
+        """Verify liquid sodium mass density matches ANL/RE-95/2 Hornung formulation within 0.1%."""
+        computed = liquid_sodium_mass_density(temp_c)
         assert computed == pytest.approx(anl_hornung_expected_rho, rel=1e-3)
+        # Verify backward-compatible alias parity
+        assert liquid_sodium_density(temp_c) == computed
 
     def test_density_strictly_monotonically_decreasing(self):
         """Universal physical law: Thermal expansion requires d(rho)/dT < 0 everywhere in liquid phase."""
         temps_c = [100.0, 200.0, 300.0, 400.0, 500.0, 600.0, 700.0, 800.0, 850.0]
-        densities = [liquid_sodium_density(t) for t in temps_c]
+        densities = [liquid_sodium_mass_density(t) for t in temps_c]
         
         for i in range(len(densities) - 1):
             assert densities[i] > densities[i + 1], (
-                f"Density violation: rho({temps_c[i]}°C)={densities[i]} not > "
+                f"Mass density violation: rho({temps_c[i]}°C)={densities[i]} not > "
                 f"rho({temps_c[i+1]}°C)={densities[i+1]}"
             )
 
@@ -106,6 +109,8 @@ class TestLiquidSodiumDensity:
         ],
     )
     def test_liquid_density_rejects_non_liquid_phases(self, invalid_state):
-        """Verify liquid density strictly raises DomainBoundaryError on non-liquid phases."""
+        """Verify liquid mass density strictly raises DomainBoundaryError on non-liquid phases."""
+        with pytest.raises(DomainBoundaryError):
+            liquid_sodium_mass_density(invalid_state)
         with pytest.raises(DomainBoundaryError):
             liquid_sodium_density(invalid_state)
