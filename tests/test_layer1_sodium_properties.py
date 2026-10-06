@@ -9,6 +9,10 @@ from sfr_mcp.layer1_sodium_properties import (
     liquid_sodium_surface_tension,
     liquid_sodium_dynamic_viscosity,
     liquid_sodium_thermal_conductivity,
+    sodium_saturated_vapor_pressure,
+    sodium_enthalpy_of_vaporization,
+    sodium_saturated_vapor_density,
+    sodium_vapor_dynamic_viscosity,
     CELSIUS_TO_KELVIN_OFFSET,
 )
 
@@ -170,4 +174,60 @@ class TestANLLiquidSodiumThermophysicalParity:
             liquid_sodium_dynamic_viscosity(bad_val)
         with pytest.raises(DomainBoundaryError):
             liquid_sodium_thermal_conductivity(bad_val)
+
+
+class TestANLSodiumVaporAndSaturationParity:
+    """
+    Tier-1 ANL/RE-95/2 Parity Suite for vapor and saturation properties
+    across the 5-point discrete test grid:
+    T in {625.0 C, 650.0 C, 675.0 C, 700.0 C, 750.0 C}.
+    Asserts parity within 0.05% of ANL benchmark values.
+    """
+
+    @pytest.mark.parametrize(
+        "temp_c, exp_psat, exp_hfg, exp_rhov, exp_muv",
+        [
+            (625.0, 5005.5, 4113914.5, 0.01612, 2.0180e-05),
+            (650.0, 7233.0, 4092269.5, 0.02276, 2.0600e-05),
+            (675.0, 10247.3, 4070425.3, 0.03152, 2.1017e-05),
+            (700.0, 14255.8, 4048376.4, 0.04290, 2.1431e-05),
+            (750.0, 26263.6, 4003641.0, 0.07582, 2.2252e-05),
+        ],
+    )
+    def test_anl_vapor_properties_parity(self, temp_c, exp_psat, exp_hfg, exp_rhov, exp_muv):
+        psat = sodium_saturated_vapor_pressure(temp_c)
+        hfg = sodium_enthalpy_of_vaporization(temp_c)
+        rhov = sodium_saturated_vapor_density(temp_c)
+        muv = sodium_vapor_dynamic_viscosity(temp_c)
+
+        assert psat == pytest.approx(exp_psat, rel=5e-4)  # <= 0.05%
+        assert hfg == pytest.approx(exp_hfg, rel=5e-4)    # <= 0.05%
+        assert rhov == pytest.approx(exp_rhov, rel=5e-4)  # <= 0.05%
+        assert muv == pytest.approx(exp_muv, rel=5e-4)    # <= 0.05%
+
+    def test_vapor_properties_monotonicity(self):
+        """Verify fundamental physical monotonicity across corridor [625-750 C]."""
+        grid = [625.0, 650.0, 675.0, 700.0, 725.0, 750.0]
+        pressures = [sodium_saturated_vapor_pressure(t) for t in grid]
+        latent_heats = [sodium_enthalpy_of_vaporization(t) for t in grid]
+        densities = [sodium_saturated_vapor_density(t) for t in grid]
+        viscosities = [sodium_vapor_dynamic_viscosity(t) for t in grid]
+
+        for i in range(len(grid) - 1):
+            assert pressures[i] < pressures[i + 1], "Vapor pressure must increase with T"
+            assert latent_heats[i] > latent_heats[i + 1], "Latent heat must decrease with T"
+            assert densities[i] < densities[i + 1], "Vapor density must increase with T"
+            assert viscosities[i] < viscosities[i + 1], "Vapor viscosity must increase with T"
+
+    @pytest.mark.parametrize("bad_val", [float("nan"), float("inf"), float("-inf"), True, False, "650", None, 50.0, 950.0])
+    def test_vapor_properties_reject_bad_inputs(self, bad_val):
+        with pytest.raises(DomainBoundaryError):
+            sodium_saturated_vapor_pressure(bad_val)
+        with pytest.raises(DomainBoundaryError):
+            sodium_enthalpy_of_vaporization(bad_val)
+        with pytest.raises(DomainBoundaryError):
+            sodium_saturated_vapor_density(bad_val)
+        with pytest.raises(DomainBoundaryError):
+            sodium_vapor_dynamic_viscosity(bad_val)
+
 
