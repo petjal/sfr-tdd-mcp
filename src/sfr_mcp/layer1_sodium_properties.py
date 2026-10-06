@@ -8,6 +8,7 @@ All thermodynamic evaluations in Layer 1 inherit physical boundary
 guards from Layer 0.
 """
 
+import math
 from typing import Any
 from sfr_mcp.layer0_invariants import (
     validate_real_temperature,
@@ -84,3 +85,66 @@ def liquid_sodium_mass_density(temp_c: Any) -> float:
 
 # Backward-compatible alias for liquid sodium mass density
 liquid_sodium_density = liquid_sodium_mass_density
+
+
+def liquid_sodium_specific_heat(temp_c: Any) -> float:
+    """
+    Evaluate saturated liquid sodium specific heat capacity C_p(T) in [J/(kg*K)].
+
+    Primary Source:
+        ANL/RE-95/2 (Fink & Leibowitz, 1995), Section 1.1.1, p. 8.
+    Equation:
+        C_p = 1658.2 - 0.84790*T_K + 4.4541e-4*(T_K^2) - 2.9926e6*(T_K^-2)  [J/(kg*K)]
+    """
+    t_c = validate_liquid_sodium_temperature(temp_c)
+    t_k = celsius_to_kelvin(t_c)
+    cp = 1658.2 - 0.84790 * t_k + 4.4541e-4 * (t_k ** 2) - 2.9926e6 * (t_k ** -2)
+    return float(cp)
+
+
+def liquid_sodium_surface_tension(temp_c: Any) -> float:
+    """
+    Evaluate liquid sodium surface tension sigma(T) in [N/m].
+
+    Primary Source:
+        ANL/RE-95/2 (Fink & Leibowitz, 1995), Section 1.3.4, p. 109.
+    Equation:
+        theta = 1 - T_K / 2503.7
+        sigma = 0.2405 * (theta ** 1.126)  [N/m]
+    """
+    t_c = validate_liquid_sodium_temperature(temp_c)
+    t_k = celsius_to_kelvin(t_c)
+    theta = 1.0 - (t_k / ANL_CRITICAL_TEMP_K)
+    sigma = 0.2405 * (theta ** 1.126)
+    return float(sigma)
+
+
+def liquid_sodium_dynamic_viscosity(temp_c: Any) -> float:
+    """
+    Evaluate saturated liquid sodium dynamic viscosity mu_l(T) in [Pa*s].
+
+    Primary Source:
+        ANL/RE-95/2 (Fink & Leibowitz, 1995), Section 1.3.2, p. 94.
+    Equation:
+        ln(mu_l) = -6.4406 - 0.3958*ln(T_K) + 556.835/T_K  [Pa*s]
+    """
+    t_c = validate_liquid_sodium_temperature(temp_c)
+    t_k = celsius_to_kelvin(t_c)
+    ln_mu = -6.4406 - 0.3958 * math.log(t_k) + 556.835 / t_k
+    return float(math.exp(ln_mu))
+
+
+def liquid_sodium_thermal_conductivity(temp_c: Any) -> float:
+    """
+    Evaluate liquid sodium thermal conductivity k_l(T) in [W/(m*K)].
+
+    Primary Source:
+        ANL/RE-95/2 (Fink & Leibowitz, 1995), Section 1.2.1, p. 43.
+    Equation:
+        k_l = 124.67 - 0.11381*T_K + 5.5226e-5*(T_K^2) - 1.1842e-8*(T_K^3)  [W/(m*K)]
+    """
+    t_c = validate_liquid_sodium_temperature(temp_c)
+    t_k = celsius_to_kelvin(t_c)
+    kl = 124.67 - 0.11381 * t_k + 5.5226e-5 * (t_k ** 2) - 1.1842e-8 * (t_k ** 3)
+    return float(kl)
+
