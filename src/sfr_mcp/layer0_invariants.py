@@ -1,39 +1,132 @@
+"""
+Layer 0: Universal Domain Invariant Substrate for Fast Reactor Systems.
+
+This module provides physical invariant guards and IEEE 754 numerical defenses
+specifically tailored for single-channel sodium heat pipe microreactor modeling
+and legacy liquid metal coolant channels.
+"""
+
 import math
 from typing import Any
 from sfr_mcp.exceptions import DomainBoundaryError
 
-# Absolute physical constants and phase thresholds
-ABSOLUTE_ZERO_C: float = -273.15
-SODIUM_MELTING_POINT_C: float = 97.80
-SODIUM_BOILING_POINT_1ATM_C: float = 883.00
-BOUNDARY_FLOAT_EPSILON: float = 1e-7
+# Canonical physical constants and environmental thresholds
+ABSOLUTE_ZERO_TEMP_C: float = -273.15
+SODIUM_SOLIDUS_MELT_TEMP_C: float = 97.80
+SODIUM_ATMOSPHERIC_BOIL_TEMP_C: float = 883.00
+HEAT_PIPE_MAX_POWER_KW: float = 150.0
+NUMERICAL_BOUNDARY_EPSILON: float = 1e-7
+
+# Backward-compatibility aliases
+ABSOLUTE_ZERO_C: float = ABSOLUTE_ZERO_TEMP_C
+SODIUM_MELTING_POINT_C: float = SODIUM_SOLIDUS_MELT_TEMP_C
+SODIUM_BOILING_POINT_1ATM_C: float = SODIUM_ATMOSPHERIC_BOIL_TEMP_C
+BOUNDARY_FLOAT_EPSILON: float = NUMERICAL_BOUNDARY_EPSILON
 
 
 def _validate_numeric(val: Any, name: str) -> float:
     """Enforce numerical finiteness and reject non-real/boolean data types."""
     if isinstance(val, bool):
         raise DomainBoundaryError(f"Booleans are not valid numeric inputs for {name}. Got {val}.")
-        
+
     if not isinstance(val, (int, float)):
         raise DomainBoundaryError(
             f"Expected a real numeric input for {name}. Got {type(val).__name__}."
         )
-        
+
     val_float = float(val)
     if not math.isfinite(val_float):
         raise DomainBoundaryError(
             f"Input {name} must be a finite real number. Got {val}."
         )
-        
+
     return val_float
 
 
+def validate_real_temperature(temp_c: Any) -> float:
+    """
+    Validate universal temperature [°C] against the third law of thermodynamics.
+
+    Invariant: Temperature must be strictly above absolute zero (-273.15°C / 0 K).
+    """
+    t = _validate_numeric(temp_c, "temp_c")
+    if t <= ABSOLUTE_ZERO_TEMP_C:
+        raise DomainBoundaryError(
+            f"Temperature {t:.2f}°C is at or below absolute zero (-273.15°C)."
+        )
+    return t
+
+
+def validate_heat_pipe_temperature(temp_c: Any) -> float:
+    """
+    Validate sodium heat pipe operational temperature [°C] within the single-phase liquid window.
+
+    Physical Regimes:
+        - T <= 97.80°C: Solid metal. Sodium is frozen into the wick pores; zero flow.
+        - 97.80°C < T < 883.00°C: Operational window where internal pressure is sub-atmospheric
+          (0.005 to 0.075 atm at nominal power).
+        - T >= 883.00°C: Pressurization inversion cliff. Saturated vapor pressure exceeds 1.0 atm,
+          flipping pipe walls from external compression into internal tension (burst risk).
+    """
+    t = validate_real_temperature(temp_c)
+
+    if t <= SODIUM_SOLIDUS_MELT_TEMP_C + NUMERICAL_BOUNDARY_EPSILON:
+        raise DomainBoundaryError(
+            f"Temperature {t:.2f}°C violates sodium freezing threshold (97.8°C)."
+        )
+
+    if t >= SODIUM_ATMOSPHERIC_BOIL_TEMP_C - NUMERICAL_BOUNDARY_EPSILON:
+        raise DomainBoundaryError(
+            f"Temperature {t:.2f}°C violates sodium boiling threshold (883.0°C at 1 atm)."
+        )
+
+    return t
+
+
+def validate_heat_pipe_power(power_kw: Any) -> float:
+    """
+    Validate thermal power [kW] transferred through a single sodium heat pipe.
+
+    Invariants:
+        1. Power must be strictly positive (> 0 kW) for active heat removal.
+        2. Power must not exceed the single-channel capillary limit ceiling (150 kWth).
+    """
+    p = _validate_numeric(power_kw, "power_kw")
+    if p <= 0.0:
+        raise DomainBoundaryError(
+            f"Heat pipe thermal power must be strictly positive (> 0 kW). Got: {p}"
+        )
+    if p > HEAT_PIPE_MAX_POWER_KW:
+        raise DomainBoundaryError(
+            f"Heat pipe power {p:.2f} kW exceeds maximum single heat pipe limit ({HEAT_PIPE_MAX_POWER_KW} kW)."
+        )
+    return p
+
+
+def validate_heat_pipe_channel_inputs(
+    power_kw: Any, temp_c: Any
+) -> tuple[float, float]:
+    """
+    Validate coupled operating parameters for a single sodium heat pipe channel.
+
+    Returns:
+        tuple[float, float]: (validated_power_kw, validated_temp_c)
+    """
+    p = validate_heat_pipe_power(power_kw)
+    t = validate_heat_pipe_temperature(temp_c)
+    return p, t
+
+
+# ==============================================================================
+# Backward Compatibility Section (for legacy loop / core validation)
+# ==============================================================================
+
+validate_liquid_sodium_temperature = validate_heat_pipe_temperature
+validate_temperature = validate_heat_pipe_temperature
+
+
 def validate_thermal_power(power_mwth: Any) -> float:
-    """
-    Validate core thermal power [MWth] against numerical and physical invariants.
-    
-    Invariant: Thermal power must be strictly positive (> 0 MWth) for reactor heating.
-    """
+    """Legacy validator for core-scale thermal power [MWth]."""
     p = _validate_numeric(power_mwth, "power_mwth")
     if p <= 0.0:
         raise DomainBoundaryError(
@@ -43,11 +136,7 @@ def validate_thermal_power(power_mwth: Any) -> float:
 
 
 def validate_mass_flow(flow_kg_s: Any) -> float:
-    """
-    Validate coolant mass flow rate [kg/s] against numerical and kinematic invariants.
-    
-    Invariant: Flow rate must be strictly positive (> 0 kg/s) to prevent starvation / zero-division.
-    """
+    """Legacy validator for loop-scale mass flow rate [kg/s]."""
     m = _validate_numeric(flow_kg_s, "flow_kg_s")
     if m <= 0.0:
         raise DomainBoundaryError(
@@ -56,57 +145,11 @@ def validate_mass_flow(flow_kg_s: Any) -> float:
     return m
 
 
-def validate_real_temperature(temp_c: Any) -> float:
-    """
-    Validate universal temperature [°C] against the third law of thermodynamics.
-    
-    Invariant: Temperature must be strictly above absolute zero (-273.15°C / 0 K).
-    """
-    t = _validate_numeric(temp_c, "temp_c")
-    if t <= ABSOLUTE_ZERO_C:
-        raise DomainBoundaryError(
-            f"Temperature {t:.2f}°C is at or below absolute zero (-273.15°C)."
-        )
-    return t
-
-
-def validate_liquid_sodium_temperature(temp_c: Any) -> float:
-    """
-    Validate liquid sodium coolant temperature [°C] against single-phase thermodynamic invariants.
-    
-    Invariants:
-    1. Temperature must be strictly above absolute zero (-273.15°C / 0 K).
-    2. Temperature must be strictly above the solid melting point (97.80°C).
-    3. Temperature must be strictly below the 1-atm boiling point (883.00°C).
-    """
-    t = validate_real_temperature(temp_c)
-    
-    if t <= SODIUM_MELTING_POINT_C + BOUNDARY_FLOAT_EPSILON:
-        raise DomainBoundaryError(
-            f"Temperature {t:.2f}°C violates sodium freezing threshold (97.8°C)."
-        )
-        
-    if t >= SODIUM_BOILING_POINT_1ATM_C - BOUNDARY_FLOAT_EPSILON:
-        raise DomainBoundaryError(
-            f"Temperature {t:.2f}°C violates sodium boiling threshold (883.0°C at 1 atm)."
-        )
-        
-    return t
-
-
-# Backward-compatible alias for liquid sodium temperature validation
-validate_temperature = validate_liquid_sodium_temperature
-
-
 def validate_core_inputs(
     power_mwth: Any, flow_kg_s: Any, inlet_temp_c: Any
 ) -> tuple[float, float, float]:
-    """
-    Validate composite core state parameters against Layer 0 physical invariants.
-    
-    Returns tuple of validated floats: (power_mwth, flow_kg_s, inlet_temp_c).
-    """
+    """Legacy composite validator for core-scale inputs."""
     p = validate_thermal_power(power_mwth)
     m = validate_mass_flow(flow_kg_s)
-    t = validate_liquid_sodium_temperature(inlet_temp_c)
+    t = validate_heat_pipe_temperature(inlet_temp_c)
     return p, m, t
