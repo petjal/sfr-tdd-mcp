@@ -1,0 +1,115 @@
+"""
+Layer 3: FastMCP Protocol Service for Single-Channel Sodium Heat Pipe Physics.
+
+Exposes verified Layer 0, Layer 1, and Layer 2 liquid metal heat pipe physics
+via the standardized Model Context Protocol (FastMCP).
+"""
+
+from pydantic import BaseModel, ConfigDict, Field
+from mcp.server.fastmcp import FastMCP
+from sfr_mcp.layer0_invariants import validate_single_channel_inputs
+from sfr_mcp.layer2_heat_pipe_solver import (
+    calculate_mass_flow,
+    calculate_channel_temperatures,
+    calculate_effective_channel_conductivity,
+    calculate_capillary_margin,
+)
+
+mcp = FastMCP("sfr-heatpipe-mcp")
+
+
+class HeatPipeAnalysisResult(BaseModel):
+    """Structured thermophysical analysis deliverables for a single-channel sodium heat pipe."""
+
+    model_config = ConfigDict(strict=True, allow_inf_nan=False, extra="forbid")
+
+    power_w: float = Field(
+        ...,
+        description="Applied thermal heat load in Watts [50.0 W to 750.0 W]",
+        ge=50.0,
+        le=750.0,
+    )
+    temp_c: float = Field(
+        ...,
+        description="Operating saturation temperature in degrees Celsius [625.0 C to 750.0 C]",
+        ge=625.0,
+        le=750.0,
+    )
+    mass_flow_g_s: float = Field(
+        ...,
+        description="Circulating sodium mass flow rate in grams per second [g/s]",
+        gt=0.0,
+    )
+    evaporator_wall_temp_c: float = Field(
+        ...,
+        description="Outer evaporator wall heat source interface temperature [C]",
+    )
+    condenser_wall_temp_c: float = Field(
+        ...,
+        description="Outer condenser wall heat rejection interface temperature [C]",
+    )
+    delta_t_c: float = Field(
+        ...,
+        description="End-to-end outer wall temperature drop [C]",
+        gt=0.0,
+    )
+    effective_thermal_conductivity_w_m_k: float = Field(
+        ...,
+        description="Equivalent bulk solid metal thermal conductivity [W/(m*K)]",
+        gt=100000.0,
+    )
+    capillary_margin: float = Field(
+        ...,
+        description="Capillary safety pumping margin M_cap = Delta P_cap,max / Delta P_tot [-]",
+        ge=1.0,
+    )
+    flow_regime: str = Field(
+        default="LAMINAR_SUBSONIC",
+        description="Hydrodynamic vapor flow regime (Re_v < 1000, Ma < 0.09)",
+    )
+    operating_status: str = Field(
+        default="NOMINAL_STEADY_STATE",
+        description="Operational regime status within the verified continuum corridor",
+    )
+
+
+@mcp.tool()
+def calculate_heatpipe_heat_transfer(power_w: float, temp_c: float) -> HeatPipeAnalysisResult:
+    """
+    Calculate high-precision steady-state heat transfer and capillary limits for a single sodium heat pipe.
+
+    Evaluates a canonical national lab horizontal test article (Do=19.05mm, Lt=2.5m, sintered mesh)
+    delivering heat from a fast microreactor core channel to an sCO2 power conversion interface.
+
+    Parameters:
+        power_w: Thermal heat load transferred in Watts [50.0 - 750.0 W].
+        temp_c: Vapor saturation temperature in degrees Celsius [625.0 - 750.0 C].
+
+    Returns:
+        HeatPipeAnalysisResult: Verified mass flow, wall temperatures, capillary margin, and conductance.
+    """
+    q, t = validate_single_channel_inputs(power_w, temp_c)
+
+    m_dot = calculate_mass_flow(q, t)
+    mass_flow_g_s = m_dot * 1000.0
+
+    t_evap_outer, t_cond_outer, delta_t = calculate_channel_temperatures(q, t)
+    k_eff_channel = calculate_effective_channel_conductivity(q, t)
+    capillary_margin = calculate_capillary_margin(q, t)
+
+    return HeatPipeAnalysisResult(
+        power_w=q,
+        temp_c=t,
+        mass_flow_g_s=mass_flow_g_s,
+        evaporator_wall_temp_c=t_evap_outer,
+        condenser_wall_temp_c=t_cond_outer,
+        delta_t_c=delta_t,
+        effective_thermal_conductivity_w_m_k=k_eff_channel,
+        capillary_margin=capillary_margin,
+        flow_regime="LAMINAR_SUBSONIC",
+        operating_status="NOMINAL_STEADY_STATE",
+    )
+
+
+if __name__ == "__main__":
+    mcp.run()
