@@ -7,10 +7,17 @@ from sfr_mcp.layer0_invariants import (
     SODIUM_ATMOSPHERIC_BOIL_TEMP_C,
     HEAT_PIPE_MAX_POWER_KW,
     NUMERICAL_BOUNDARY_EPSILON,
+    HEAT_PIPE_CORRIDOR_MIN_TEMP_C,
+    HEAT_PIPE_CORRIDOR_MAX_TEMP_C,
+    HEAT_PIPE_CORRIDOR_MIN_POWER_W,
+    HEAT_PIPE_CORRIDOR_MAX_POWER_W,
     validate_real_temperature,
     validate_heat_pipe_temperature,
     validate_heat_pipe_power,
     validate_heat_pipe_channel_inputs,
+    validate_single_channel_temperature,
+    validate_single_channel_power,
+    validate_single_channel_inputs,
     # Backward compatibility aliases
     validate_thermal_power,
     validate_mass_flow,
@@ -153,3 +160,68 @@ class TestBackwardCompatibilityAliases:
         assert p == 4.0
         assert m == 15.0
         assert t == 550.0
+
+
+class TestSingleChannelCorridor:
+    """Rigorous tests for the canonical single-channel test bench operating corridor [625-750 C, 50-750 W]."""
+
+    def test_corridor_constants(self):
+        assert HEAT_PIPE_CORRIDOR_MIN_TEMP_C == 625.0
+        assert HEAT_PIPE_CORRIDOR_MAX_TEMP_C == 750.0
+        assert HEAT_PIPE_CORRIDOR_MIN_POWER_W == 50.0
+        assert HEAT_PIPE_CORRIDOR_MAX_POWER_W == 750.0
+
+    @pytest.mark.parametrize(
+        "q_w,t_c",
+        [
+            (50.0, 625.0),   # Corner A: Min power, min temp
+            (50.0, 750.0),   # Corner B: Min power, max temp
+            (750.0, 625.0),  # Corner C: Max power, min temp
+            (750.0, 750.0),  # Corner D: Max power, max temp
+            (500.0, 650.0),  # Nominal benchmark design point
+        ],
+    )
+    def test_accept_four_corner_matrix(self, q_w, t_c):
+        p, t = validate_single_channel_inputs(q_w, t_c)
+        assert math.isclose(p, q_w, rel_tol=1e-9)
+        assert math.isclose(t, t_c, rel_tol=1e-9)
+
+    @pytest.mark.parametrize(
+        "bad_q",
+        [
+            49.99,
+            49.9999,
+            0.0,
+            -50.0,
+            750.01,
+            750.0001,
+            1000.0,
+        ],
+    )
+    def test_reject_power_breach(self, bad_q):
+        with pytest.raises(DomainBoundaryError, match="power.*corridor"):
+            validate_single_channel_power(bad_q)
+
+    @pytest.mark.parametrize(
+        "bad_t",
+        [
+            624.99,
+            624.9999,
+            500.0,
+            100.0,
+            750.01,
+            750.0001,
+            800.0,
+        ],
+    )
+    def test_reject_temperature_breach(self, bad_t):
+        with pytest.raises(DomainBoundaryError, match="temperature.*corridor"):
+            validate_single_channel_temperature(bad_t)
+
+    @pytest.mark.parametrize("bad_val", [float("nan"), float("inf"), float("-inf"), True, False, "500", None])
+    def test_reject_non_finites_and_types(self, bad_val):
+        with pytest.raises(DomainBoundaryError):
+            validate_single_channel_power(bad_val)
+        with pytest.raises(DomainBoundaryError):
+            validate_single_channel_temperature(bad_val)
+
