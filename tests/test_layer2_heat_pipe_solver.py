@@ -19,7 +19,9 @@ from sfr_mcp.layer2_heat_pipe_solver import (
     calculate_thermal_resistance_network,
     calculate_channel_temperatures,
     calculate_effective_channel_conductivity,
-    verify_lanl_htpipe_benchmark,
+    CHANNEL_WICK_PARTICLE_DIAMETER_M,
+    calculate_vapor_mach_number,
+    regression_anchor_500w_650c,
 )
 
 
@@ -31,8 +33,10 @@ class TestLayer2GeometryConstants:
         assert CHANNEL_INNER_DIAMETER_M == 17.05e-3
         assert CHANNEL_VAPOR_DIAMETER_M == 15.05e-3
         assert CHANNEL_EFFECTIVE_LENGTH_M == 1.50
-        assert CHANNEL_WICK_PORE_RADIUS_M == 25.0e-6
-        assert CHANNEL_WICK_PERMEABILITY_M2 == 1.50e-10
+        # Sintered powder wick, d_p = 100 um (Chi 1976: r_eff = 0.21 d_p; Blake-Kozeny K)
+        assert CHANNEL_WICK_PARTICLE_DIAMETER_M == 100.0e-6
+        assert CHANNEL_WICK_PORE_RADIUS_M == pytest.approx(21.0e-6, rel=1e-9)
+        assert CHANNEL_WICK_PERMEABILITY_M2 == pytest.approx(1.4946e-10, rel=1e-3)
 
 
 class TestLayer2HydrodynamicsAndCapillaryMargin:
@@ -52,16 +56,14 @@ class TestLayer2HydrodynamicsAndCapillaryMargin:
 
         # Mass flow ~ 0.122 g/s
         assert m_dot == pytest.approx(1.222e-4, rel=1e-2)
-        # Capillary head ~ 11.46 kPa
-        assert dp_cap == pytest.approx(11462.0, rel=1e-2)
-        # Darcy liquid loss ~ 5.93 kPa
-        assert dp_l == pytest.approx(5928.0, rel=1e-2)
-        # Vapor Hagen-Poiseuille loss ~ 132 Pa
-        assert dp_v == pytest.approx(131.8, rel=1e-2)
+        # Oracle: independent hand calc (Opus audit 2026-10-06, script in HANDOFF), not code output.
+        assert dp_cap == pytest.approx(13645.2, rel=1e-3)
+        assert dp_l == pytest.approx(5949.1, rel=1e-3)
+        assert dp_v == pytest.approx(128.34, rel=1e-3)
         # Total pressure drop = dp_l + dp_v
         assert dp_tot == pytest.approx(dp_l + dp_v, rel=1e-9)
-        # Capillary margin ~ 1.89x
-        assert m_cap == pytest.approx(1.89, rel=2e-2)
+        assert m_cap == pytest.approx(2.2452, rel=1e-3)
+        assert calculate_vapor_mach_number(q, t) < 0.1
         # Strictly laminar vapor Reynolds number (< 1000)
         assert re_v < 1000.0
 
@@ -106,23 +108,22 @@ class TestThermalResistanceNetwork:
     """5-element thermal resistance network, temperatures, and equivalent conductance."""
 
     def test_effective_wick_thermal_conductivity(self):
-        # Chi / Maxwell formulation: ~41.6 W/(m*K) at 650 C
+        # Chi (1976) sintered-powder (Maxwell) form, hand calc 41.009 W/(m*K) at 650 C
         k_eff = calculate_effective_wick_conductivity(650.0)
-        assert k_eff == pytest.approx(41.60, rel=1e-2)
+        assert k_eff == pytest.approx(41.009, rel=1e-3)
 
     def test_thermal_resistance_network_elements_500w_650c(self):
         res = calculate_thermal_resistance_network(500.0, 650.0)
         assert res["r_wall_e"] == pytest.approx(8.211e-4, rel=1e-2)
-        assert res["r_wick_e"] == pytest.approx(4.773e-4, rel=1e-2)
-        assert res["r_vapor"] == pytest.approx(2.61e-3, rel=5e-2)
-        assert res["r_wick_c"] == pytest.approx(4.773e-4, rel=1e-2)
+        assert res["r_wick_e"] == pytest.approx(4.8423e-4, rel=1e-3)
+        assert res["r_vapor"] == pytest.approx(2.4785e-3, rel=1e-3)
+        assert res["r_wick_c"] == pytest.approx(4.8423e-4, rel=1e-3)
         assert res["r_wall_c"] == pytest.approx(8.211e-4, rel=1e-2)
-        assert res["r_total"] == pytest.approx(5.21e-3, rel=5e-2)
+        assert res["r_total"] == pytest.approx(5.0891e-3, rel=1e-3)
 
     def test_channel_temperature_drops_and_conductance(self):
         t_evap, t_cond, delta_t = calculate_channel_temperatures(500.0, 650.0)
-        # End-to-end delta_t ~ 2.60 K
-        assert delta_t == pytest.approx(2.60, rel=5e-2)
+        assert delta_t == pytest.approx(2.5445, rel=1e-3)
         # Interface boundary consistency: T_evap > T_sat > T_cond
         assert t_evap > 650.0
         assert t_cond < 650.0
@@ -133,19 +134,13 @@ class TestThermalResistanceNetwork:
         assert k_channel > 1.0e6  # ~1.68 MW/(m*K)
 
 
-class TestLANLHTPIPEBenchmark:
-    """
-    ASME NQA-1 Subpart 2.7 Code-to-Code Verification Suite against
-    LANL LA-11324-M HTPIPE Benchmark Target Vector at (500 W, 650 C).
-    Enforces strict <= 5.0% error margin across all 3 key physical deliverables.
-    """
+class TestRegressionAnchor:
+    """Regression anchor at (500 W, 650 C) against an independent hand calc.
+    This is NOT a LANL/HTPIPE benchmark and makes no NQA-1 claim."""
 
-    def test_lanl_htpipe_benchmark_parity(self):
-        results = verify_lanl_htpipe_benchmark()
-
-        # All 3 benchmarks must strictly pass <= 5.0%
-        assert results["vapor_pressure_drop_error_pct"] <= 5.0
-        assert results["liquid_darcy_drop_error_pct"] <= 5.0
-        assert results["temperature_drop_error_pct"] <= 5.0
-        assert results["nqa1_verification_status"] == "VERIFIED_PASS"
-
+    def test_regression_anchor_matches_hand_calc(self):
+        r = regression_anchor_500w_650c()
+        assert r["vapor_pressure_drop_pa"] == pytest.approx(128.34, rel=1e-3)
+        assert r["liquid_darcy_drop_pa"] == pytest.approx(5949.1, rel=1e-3)
+        assert r["temperature_drop_k"] == pytest.approx(2.5445, rel=1e-3)
+        assert "nqa1_verification_status" not in r

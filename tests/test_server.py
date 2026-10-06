@@ -20,14 +20,15 @@ class TestFastMCPService:
         assert result.mass_flow_g_s == pytest.approx(0.1222, rel=1e-2)
         assert result.evaporator_wall_temp_c > 650.0
         assert result.condenser_wall_temp_c < 650.0
-        assert result.delta_t_c == pytest.approx(2.60, rel=5e-2)
+        assert result.delta_t_c == pytest.approx(2.5445, rel=1e-3)
+        assert result.vapor_reynolds_number == pytest.approx(501.8, rel=2e-3)
         assert math.isclose(
             result.evaporator_wall_temp_c - result.condenser_wall_temp_c,
             result.delta_t_c,
             rel_tol=1e-7,
         )
         assert result.effective_thermal_conductivity_w_m_k > 1.0e6
-        assert result.capillary_margin == pytest.approx(1.89, rel=2e-2)
+        assert result.capillary_margin == pytest.approx(2.2452, rel=1e-3)
         assert result.flow_regime == "LAMINAR_SUBSONIC"
         assert result.operating_status == "NOMINAL_STEADY_STATE"
 
