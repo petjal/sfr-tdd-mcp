@@ -231,3 +231,26 @@ class TestANLSodiumVaporAndSaturationParity:
             sodium_vapor_dynamic_viscosity(bad_val)
 
 
+
+
+class TestANLPrintedTables:
+    """
+    Independent oracles copied VERBATIM from the scanned ANL/RE-95/2 report
+    (Fink & Leibowitz 1995), Table 1.3-1 "Sodium Density", printed p. 87
+    (PDF p. 108). Table values have 3 significant figures, so tolerances
+    reflect table rounding, not correlation error.
+    Note: the pre-audit Na/Na2 dimerization rho_v model ran ~2.6% low and
+    FAILS the vapor rows below; the ANL thermodynamic relation passes.
+    """
+
+    @pytest.mark.parametrize(
+        "temp_k, table_rho_l, table_rho_v",
+        [
+            (900.0, 805.0, 1.70e-2),
+            (1000.0, 781.0, 6.03e-2),
+        ],
+    )
+    def test_table_1_3_1_density(self, temp_k, table_rho_l, table_rho_v):
+        temp_c = temp_k - 273.15
+        assert liquid_sodium_mass_density(temp_c) == pytest.approx(table_rho_l, rel=1e-3)
+        assert sodium_saturated_vapor_density(temp_c) == pytest.approx(table_rho_v, rel=4e-3)

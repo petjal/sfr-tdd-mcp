@@ -60,7 +60,7 @@ def liquid_sodium_mass_density(temp_c: Any) -> float:
 
     Primary Source:
         Argonne National Laboratory report ANL/RE-95/2 (Fink & Leibowitz, 1995),
-        Section 1.3.1 "Density", Equation 1, p. 86.
+        Section 1.3.1 "Density", Equation 1, p. 86 (verified vs scan; Table 1.3-1 p. 87).
 
     Equation:
         theta = 1 - T_K / 2503.7
@@ -161,7 +161,7 @@ def sodium_saturated_vapor_pressure(temp_c: Any) -> float:
     Evaluate saturated sodium vapor pressure P_sat(T) in Pascals [Pa].
 
     Primary Source:
-        ANL/RE-95/2 (Fink & Leibowitz, 1995), Section 1.2.1, p. 55 (coefficients not yet checked vs scan).
+        ANL/RE-95/2 (Fink & Leibowitz, 1995), Section 1.2.1, Eq. 1, p. 55 (verified vs scan; data range 864-2499 K).
     Equation:
         ln(P_sat_MPa) = 11.9463 - 12633.73/T_K - 0.4672*ln(T_K)  [MPa]
         P_sat = P_sat_MPa * 1e6  [Pa]
@@ -177,7 +177,7 @@ def sodium_enthalpy_of_vaporization(temp_c: Any) -> float:
     Evaluate latent heat of vaporization h_fg(T) in Joules per kilogram [J/kg].
 
     Primary Source:
-        ANL/RE-95/2 (Fink & Leibowitz, 1995), Section 1.2.3, p. 65 (coefficients not yet checked vs scan).
+        ANL/RE-95/2 (Fink & Leibowitz, 1995), Section 1.2.3, Eq. 7, p. 65 (verified vs scan; fit to Golden & Tokar quasi-chemical values).
     Equation:
         theta = 1 - T_K / 2503.7
         h_fg = 1000.0 * (393.37*theta + 4398.6*(theta^0.29302))  [J/kg]
@@ -194,7 +194,8 @@ def sodium_saturated_vapor_density(temp_c: Any) -> float:
     Evaluate saturated sodium vapor density rho_v(T) in [kg/m^3].
 
     Primary Source:
-        ANL/RE-95/2 (Fink & Leibowitz, 1995) method: vapor density from the
+        ANL/RE-95/2 (Fink & Leibowitz, 1995), Sec. 1.3.1, Eq. 2, p. 86 (verified vs scan):
+        vapor density from the
         thermodynamic (Clausius-Clapeyron) relation
             (dP/dT)_sat = dH_v / (T * (1/rho_g - 1/rho_l))
         =>  rho_g = 1 / ( dH_v / (T * dP/dT) + 1/rho_l )
