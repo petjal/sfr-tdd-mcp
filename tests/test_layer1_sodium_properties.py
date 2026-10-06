@@ -5,6 +5,10 @@ from sfr_mcp.layer1_sodium_properties import (
     celsius_to_kelvin,
     liquid_sodium_mass_density,
     liquid_sodium_density,
+    liquid_sodium_specific_heat,
+    liquid_sodium_surface_tension,
+    liquid_sodium_dynamic_viscosity,
+    liquid_sodium_thermal_conductivity,
     CELSIUS_TO_KELVIN_OFFSET,
 )
 
@@ -114,3 +118,56 @@ class TestLiquidSodiumMassDensity:
             liquid_sodium_mass_density(invalid_state)
         with pytest.raises(DomainBoundaryError):
             liquid_sodium_density(invalid_state)
+
+
+class TestANLLiquidSodiumThermophysicalParity:
+    """
+    Tier-1 ANL/RE-95/2 Parity Suite across the 5-point discrete test grid:
+    T in {625.0 C, 650.0 C, 675.0 C, 700.0 C, 750.0 C}.
+    Asserts parity within 0.05% of ANL benchmark values.
+    """
+
+    @pytest.mark.parametrize(
+        "temp_c, exp_cp, exp_sigma, exp_mu_l, exp_kl",
+        [
+            (625.0, 1252.25, 0.14583, 2.0100e-4, 58.421),
+            (650.0, 1251.53, 0.14327, 1.9552e-4, 57.354),
+            (675.0, 1251.35, 0.14073, 1.9041e-4, 56.315),
+            (700.0, 1251.72, 0.13818, 1.8564e-4, 55.302),
+            (750.0, 1254.08, 0.13311, 1.7697e-4, 53.354),
+        ],
+    )
+    def test_anl_properties_parity(self, temp_c, exp_cp, exp_sigma, exp_mu_l, exp_kl):
+        cp = liquid_sodium_specific_heat(temp_c)
+        sigma = liquid_sodium_surface_tension(temp_c)
+        mu_l = liquid_sodium_dynamic_viscosity(temp_c)
+        kl = liquid_sodium_thermal_conductivity(temp_c)
+
+        assert cp == pytest.approx(exp_cp, rel=5e-4)  # <= 0.05%
+        assert sigma == pytest.approx(exp_sigma, rel=5e-4)  # <= 0.05%
+        assert mu_l == pytest.approx(exp_mu_l, rel=5e-4)  # <= 0.05%
+        assert kl == pytest.approx(exp_kl, rel=5e-4)  # <= 0.05%
+
+    def test_liquid_properties_monotonicity(self):
+        """Verify fundamental physical monotonicity across corridor [625-750 C]."""
+        grid = [625.0, 650.0, 675.0, 700.0, 725.0, 750.0]
+        sigmas = [liquid_sodium_surface_tension(t) for t in grid]
+        viscosities = [liquid_sodium_dynamic_viscosity(t) for t in grid]
+        conductivities = [liquid_sodium_thermal_conductivity(t) for t in grid]
+
+        for i in range(len(grid) - 1):
+            assert sigmas[i] > sigmas[i + 1], "Surface tension must decrease with T"
+            assert viscosities[i] > viscosities[i + 1], "Viscosity must decrease with T"
+            assert conductivities[i] > conductivities[i + 1], "Thermal conductivity must decrease with T"
+
+    @pytest.mark.parametrize("bad_val", [float("nan"), float("inf"), float("-inf"), True, False, "650", None, 50.0, 950.0])
+    def test_liquid_properties_reject_bad_inputs(self, bad_val):
+        with pytest.raises(DomainBoundaryError):
+            liquid_sodium_specific_heat(bad_val)
+        with pytest.raises(DomainBoundaryError):
+            liquid_sodium_surface_tension(bad_val)
+        with pytest.raises(DomainBoundaryError):
+            liquid_sodium_dynamic_viscosity(bad_val)
+        with pytest.raises(DomainBoundaryError):
+            liquid_sodium_thermal_conductivity(bad_val)
+
