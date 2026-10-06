@@ -26,6 +26,11 @@ ANL_F_COEFF: float = 275.32
 ANL_G_COEFF: float = 511.58
 ANL_H_EXPONENT: float = 0.5
 
+# Gas constants and molecular weights for vapor dimerization equilibrium
+UNIVERSAL_GAS_CONSTANT_R: float = 8.314462  # J/(mol*K)
+SODIUM_MONOMER_MOLAR_MASS_KG_MOL: float = 22.98977e-3  # kg/mol
+ATMOSPHERIC_PRESSURE_PA: float = 101325.0  # Pa
+
 
 def celsius_to_kelvin(temp_c: Any) -> float:
     """
@@ -147,4 +152,84 @@ def liquid_sodium_thermal_conductivity(temp_c: Any) -> float:
     t_k = celsius_to_kelvin(t_c)
     kl = 124.67 - 0.11381 * t_k + 5.5226e-5 * (t_k ** 2) - 1.1842e-8 * (t_k ** 3)
     return float(kl)
+
+
+def sodium_saturated_vapor_pressure(temp_c: Any) -> float:
+    """
+    Evaluate saturated sodium vapor pressure P_sat(T) in Pascals [Pa].
+
+    Primary Source:
+        ANL/RE-95/2 (Fink & Leibowitz, 1995), Section 1.4.1, p. 132.
+    Equation:
+        ln(P_sat_MPa) = 11.9463 - 12633.73/T_K - 0.4672*ln(T_K)  [MPa]
+        P_sat = P_sat_MPa * 1e6  [Pa]
+    """
+    t_c = validate_liquid_sodium_temperature(temp_c)
+    t_k = celsius_to_kelvin(t_c)
+    ln_p = 11.9463 - 12633.73 / t_k - 0.4672 * math.log(t_k)
+    return float(math.exp(ln_p) * 1e6)
+
+
+def sodium_enthalpy_of_vaporization(temp_c: Any) -> float:
+    """
+    Evaluate latent heat of vaporization h_fg(T) in Joules per kilogram [J/kg].
+
+    Primary Source:
+        ANL/RE-95/2 (Fink & Leibowitz, 1995), Section 1.1.2, p. 18.
+    Equation:
+        theta = 1 - T_K / 2503.7
+        h_fg = 1000.0 * (393.37*theta + 4398.6*(theta^0.29302))  [J/kg]
+    """
+    t_c = validate_liquid_sodium_temperature(temp_c)
+    t_k = celsius_to_kelvin(t_c)
+    theta = 1.0 - (t_k / ANL_CRITICAL_TEMP_K)
+    h_fg = 1000.0 * (393.37 * theta + 4398.6 * (theta ** 0.29302))
+    return float(h_fg)
+
+
+def sodium_saturated_vapor_density(temp_c: Any) -> float:
+    """
+    Evaluate dimerized saturated sodium vapor density rho_v(T) in [kg/m^3].
+
+    Primary Source:
+        ANL/RE-95/2 chemical equilibrium model: 2Na <=> Na2.
+        Ewing et al. (1967) / Fink & Leibowitz (1995).
+    Formulation:
+        log10(K_p) = -4.320 + 3890.0 / T_K  (K_p in atm^-1)
+        Solves quadratic equilibrium for monomer and dimer partial pressures,
+        computes effective mixture molar mass M_avg, and evaluates rho_v = (P*M_avg)/(R*T).
+    """
+    t_c = validate_liquid_sodium_temperature(temp_c)
+    t_k = celsius_to_kelvin(t_c)
+    psat = sodium_saturated_vapor_pressure(t_c)
+    p_atm = psat / ATMOSPHERIC_PRESSURE_PA
+
+    log10_kp = -4.320 + 3890.0 / t_k
+    kp = 10.0 ** log10_kp
+
+    # Quadratic equilibrium: kp * p1^2 + p1 - p_atm = 0
+    p1 = (-1.0 + math.sqrt(1.0 + 4.0 * kp * p_atm)) / (2.0 * kp)
+    p2 = p_atm - p1
+
+    m1 = SODIUM_MONOMER_MOLAR_MASS_KG_MOL
+    m2 = 2.0 * m1
+    m_avg = (p1 * m1 + p2 * m2) / p_atm
+
+    rho_v = (psat * m_avg) / (UNIVERSAL_GAS_CONSTANT_R * t_k)
+    return float(rho_v)
+
+
+def sodium_vapor_dynamic_viscosity(temp_c: Any) -> float:
+    """
+    Evaluate sodium vapor dynamic viscosity mu_v(T) in [Pa*s].
+
+    Primary Source:
+        ANL/RE-95/2 & Chapman-Enskog / Vargaftik dilute sodium vapor relation:
+        mu_v(T) = 2.06e-5 * (T_K / 923.15)^0.75  [Pa*s]
+    """
+    t_c = validate_liquid_sodium_temperature(temp_c)
+    t_k = celsius_to_kelvin(t_c)
+    mu_v = 2.06e-5 * ((t_k / 923.15) ** 0.75)
+    return float(mu_v)
+
 
