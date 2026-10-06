@@ -18,7 +18,7 @@ from sfr_mcp.layer0_invariants import (
 # Canonical thermodynamic offset between Celsius and Kelvin scales [K]
 CELSIUS_TO_KELVIN_OFFSET: float = abs(ABSOLUTE_ZERO_C)
 
-# ANL/RE-95/2 (Fink & Leibowitz, 1995, Section 1.3.1, p. 86) Hornung Liquid Density Formulation Constants
+# ANL/RE-95/2 (Fink & Leibowitz, 1995, Section 1.3.1, p. 86) Hornung Liquid Mass Density Formulation Constants
 ANL_CRITICAL_TEMP_K: float = 2503.7
 ANL_CRITICAL_DENSITY_KG_M3: float = 219.0
 ANL_F_COEFF: float = 275.32
@@ -44,9 +44,13 @@ def celsius_to_kelvin(temp_c: Any) -> float:
     return t_c + CELSIUS_TO_KELVIN_OFFSET
 
 
-def liquid_sodium_density(temp_c: Any) -> float:
+def liquid_sodium_mass_density(temp_c: Any) -> float:
     """
     Evaluate saturated liquid sodium mass density rho(T) in [kg/m^3] via the Hornung formulation.
+
+    Distinction:
+        Specifically evaluates *mass density* [kg/m^3], as distinguished from atomic/number
+        density [atoms/b-cm] or core power density [MW/m^3].
 
     Primary Source:
         Argonne National Laboratory report ANL/RE-95/2 (Fink & Leibowitz, 1995),
@@ -58,13 +62,13 @@ def liquid_sodium_density(temp_c: Any) -> float:
 
     Physical Invariants:
         1. Single-phase liquid: strictly enforces 97.80°C < temp_c < 883.00°C.
-        2. Thermal expansion: density monotonically decreases with temperature (d(rho)/dT < 0).
+        2. Thermal expansion: mass density monotonically decreases with temperature (d(rho)/dT < 0).
 
     Parameters:
         temp_c: Coolant temperature in degrees Celsius [°C].
 
     Returns:
-        float: Liquid sodium density in kilograms per cubic meter [kg/m^3].
+        float: Liquid sodium mass density in kilograms per cubic meter [kg/m^3].
     """
     t_c = validate_liquid_sodium_temperature(temp_c)
     t_k = celsius_to_kelvin(t_c)
@@ -76,3 +80,7 @@ def liquid_sodium_density(temp_c: Any) -> float:
         + ANL_G_COEFF * (theta ** ANL_H_EXPONENT)
     )
     return float(rho)
+
+
+# Backward-compatible alias for liquid sodium mass density
+liquid_sodium_density = liquid_sodium_mass_density
