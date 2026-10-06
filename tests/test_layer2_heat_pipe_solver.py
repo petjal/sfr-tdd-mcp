@@ -15,6 +15,11 @@ from sfr_mcp.layer2_heat_pipe_solver import (
     calculate_total_pressure_drop,
     calculate_capillary_margin,
     calculate_vapor_reynolds_number,
+    calculate_effective_wick_conductivity,
+    calculate_thermal_resistance_network,
+    calculate_channel_temperatures,
+    calculate_effective_channel_conductivity,
+    verify_lanl_htpipe_benchmark,
 )
 
 
@@ -95,3 +100,52 @@ class TestLayer2HydrodynamicsAndCapillaryMargin:
     def test_hydrodynamics_rejects_boundary_breaches(self, bad_q, bad_t):
         with pytest.raises(DomainBoundaryError):
             calculate_capillary_margin(bad_q, bad_t)
+
+
+class TestThermalResistanceNetwork:
+    """5-element thermal resistance network, temperatures, and equivalent conductance."""
+
+    def test_effective_wick_thermal_conductivity(self):
+        # Chi / Maxwell formulation: ~41.6 W/(m*K) at 650 C
+        k_eff = calculate_effective_wick_conductivity(650.0)
+        assert k_eff == pytest.approx(41.60, rel=1e-2)
+
+    def test_thermal_resistance_network_elements_500w_650c(self):
+        res = calculate_thermal_resistance_network(500.0, 650.0)
+        assert res["r_wall_e"] == pytest.approx(8.211e-4, rel=1e-2)
+        assert res["r_wick_e"] == pytest.approx(4.773e-4, rel=1e-2)
+        assert res["r_vapor"] == pytest.approx(2.61e-3, rel=5e-2)
+        assert res["r_wick_c"] == pytest.approx(4.773e-4, rel=1e-2)
+        assert res["r_wall_c"] == pytest.approx(8.211e-4, rel=1e-2)
+        assert res["r_total"] == pytest.approx(5.21e-3, rel=5e-2)
+
+    def test_channel_temperature_drops_and_conductance(self):
+        t_evap, t_cond, delta_t = calculate_channel_temperatures(500.0, 650.0)
+        # End-to-end delta_t ~ 2.60 K
+        assert delta_t == pytest.approx(2.60, rel=5e-2)
+        # Interface boundary consistency: T_evap > T_sat > T_cond
+        assert t_evap > 650.0
+        assert t_cond < 650.0
+        assert math.isclose(t_evap - t_cond, delta_t, rel_tol=1e-9)
+
+        # Equivalent bulk thermal conductivity must vastly exceed solid copper (> 100,000 W/m*K)
+        k_channel = calculate_effective_channel_conductivity(500.0, 650.0)
+        assert k_channel > 1.0e6  # ~1.68 MW/(m*K)
+
+
+class TestLANLHTPIPEBenchmark:
+    """
+    ASME NQA-1 Subpart 2.7 Code-to-Code Verification Suite against
+    LANL LA-11324-M HTPIPE Benchmark Target Vector at (500 W, 650 C).
+    Enforces strict <= 5.0% error margin across all 3 key physical deliverables.
+    """
+
+    def test_lanl_htpipe_benchmark_parity(self):
+        results = verify_lanl_htpipe_benchmark()
+
+        # All 3 benchmarks must strictly pass <= 5.0%
+        assert results["vapor_pressure_drop_error_pct"] <= 5.0
+        assert results["liquid_darcy_drop_error_pct"] <= 5.0
+        assert results["temperature_drop_error_pct"] <= 5.0
+        assert results["nqa1_verification_status"] == "VERIFIED_PASS"
+
