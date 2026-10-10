@@ -6,7 +6,7 @@ This is a portfolio demonstration. It is not a qualified design or safety code.
 
 ## Background
 
-My first attempt at this project (`oklo-aurora-mcp`) contained AI-invented sources and a fake benchmark. I rebuilt it here, tracing every constant to a scanned page in ANL/RE-95/2 and pulling test oracles directly from the printed tables. The breakdown of the original errors is in [oklo-aurora-mcp/PROVENANCE.md](https://github.com/petjal/oklo-aurora-mcp/blob/master/PROVENANCE.md).
+Built as a clean-room take-home demonstration: a single horizontal sodium heat pipe calculator tracing every thermophysical constant to scanned pages in ANL/RE-95/2 (Fink & Leibowitz, 1995) and pulling test oracles directly from printed benchmark tables.
 
 ## Scope
 
