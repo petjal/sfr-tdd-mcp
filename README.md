@@ -6,7 +6,7 @@ This is a portfolio demonstration. It is not a qualified design or safety code.
 
 ## Background
 
-Built as a clean-room take-home demonstration: a single horizontal sodium heat pipe calculator tracing every thermophysical constant to scanned pages in ANL/RE-95/2 (Fink & Leibowitz, 1995) and pulling test oracles directly from printed benchmark tables.
+Built as a clean-room demonstration: a single horizontal sodium heat pipe calculator tracing every thermophysical constant to scanned pages in ANL/RE-95/2 (Fink & Leibowitz, 1995) and pulling test oracles directly from printed benchmark tables.
 
 ## Scope
 
@@ -58,7 +58,7 @@ Across the corridor, the vapor flow is laminar (Re_v < 800) and Ma < 0.09, so th
 
 ## How it was built
 
-Built AI-paired. I set scope, architecture, and invariants; the model wrote tests first, then code. An independent model audit caught a mislabeled benchmark and an inconsistent wick spec, and both were fixed. See the git log, which keeps the red/green history.
+Built AI-paired. I set scope, architecture, and invariants; the model wrote tests first, then code. An independent model audit caught a mislabeled benchmark and an inconsistent wick spec, and both were fixed. See the git log, which keeps the red/green history. For architectural steering decisions, literature cross-checks, and adversarial verification catches, see [VERIFICATION_LOG.md](VERIFICATION_LOG.md).
 
 ## Run
 
