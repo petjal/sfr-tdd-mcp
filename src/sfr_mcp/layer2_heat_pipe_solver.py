@@ -10,19 +10,20 @@ constitutive thermophysical properties.
 
 import math
 from typing import Any
+
 from sfr_mcp.layer0_invariants import (
     validate_single_channel_inputs,
     validate_single_channel_temperature,
 )
 from sfr_mcp.layer1_sodium_properties import (
+    celsius_to_kelvin,
+    liquid_sodium_dynamic_viscosity,
     liquid_sodium_mass_density,
     liquid_sodium_surface_tension,
-    liquid_sodium_dynamic_viscosity,
     liquid_sodium_thermal_conductivity,
     sodium_enthalpy_of_vaporization,
     sodium_saturated_vapor_density,
     sodium_vapor_dynamic_viscosity,
-    celsius_to_kelvin,
 )
 
 # Frozen test-article geometry (representative of liquid-metal heat pipe test articles;

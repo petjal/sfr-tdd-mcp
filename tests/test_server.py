@@ -1,10 +1,12 @@
 import math
+
 import pytest
+
 from sfr_mcp.exceptions import DomainBoundaryError
 from sfr_mcp.server import (
-    mcp,
-    calculate_heatpipe_heat_transfer,
     HeatPipeAnalysisResult,
+    calculate_heatpipe_heat_transfer,
+    mcp,
 )
 
 
@@ -68,3 +70,20 @@ class TestFastMCPService:
 
     def test_mcp_server_metadata(self):
         assert mcp.name == "sfr-heatpipe-mcp"
+
+    def test_fastmcp_tool_schema_and_boundaries(self):
+        """Verify FastMCP generates correct JSON Schema bounds for LLM tool selection."""
+        import asyncio
+        tools = asyncio.run(mcp.list_tools())
+        tool = next((t for t in tools if t.name == "calculate_heatpipe_heat_transfer"), None)
+        assert tool is not None
+        assert tool.inputSchema is not None
+        props = tool.inputSchema["properties"]
+        assert "power_w" in props
+        assert "temp_c" in props
+        assert props["power_w"].get("minimum") == 50.0
+        assert props["power_w"].get("maximum") == 750.0
+        assert props["temp_c"].get("minimum") == 625.0
+        assert props["temp_c"].get("maximum") == 750.0
+        assert "50.0 W to 750.0 W" in props["power_w"].get("description", "")
+        assert "625.0 C to 750.0 C" in props["temp_c"].get("description", "")

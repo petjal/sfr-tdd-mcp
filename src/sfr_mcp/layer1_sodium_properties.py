@@ -10,10 +10,11 @@ guards from Layer 0.
 
 import math
 from typing import Any
+
 from sfr_mcp.layer0_invariants import (
-    validate_real_temperature,
-    validate_liquid_sodium_temperature,
     ABSOLUTE_ZERO_C,
+    validate_liquid_sodium_temperature,
+    validate_real_temperature,
 )
 
 # Canonical thermodynamic offset between Celsius and Kelvin scales [K]
@@ -92,20 +93,6 @@ def liquid_sodium_mass_density(temp_c: Any) -> float:
 liquid_sodium_density = liquid_sodium_mass_density
 
 
-def liquid_sodium_specific_heat(temp_c: Any) -> float:
-    """
-    Evaluate saturated liquid sodium specific heat capacity C_p(T) in [J/(kg*K)].
-
-    Primary Source:
-        ANL/RE-95/2 (Fink & Leibowitz, 1995), Section 1.1.2 polynomial approximation, p. 29
-        (UNVERIFIED vs scan; summary p. 13 gives tables. Not used by the solver.)
-    Equation:
-        C_p = 1658.2 - 0.84790*T_K + 4.4541e-4*(T_K^2) - 2.9926e6*(T_K^-2)  [J/(kg*K)]
-    """
-    t_c = validate_liquid_sodium_temperature(temp_c)
-    t_k = celsius_to_kelvin(t_c)
-    cp = 1658.2 - 0.84790 * t_k + 4.4541e-4 * (t_k ** 2) - 2.9926e6 * (t_k ** -2)
-    return float(cp)
 
 
 def liquid_sodium_surface_tension(temp_c: Any) -> float:

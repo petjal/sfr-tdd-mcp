@@ -8,6 +8,7 @@ and legacy liquid metal coolant channels.
 
 import math
 from typing import Any
+
 from sfr_mcp.exceptions import DomainBoundaryError
 
 # Canonical physical constants and environmental thresholds
@@ -173,39 +174,6 @@ def validate_single_channel_inputs(
     return p, t
 
 
-# ==============================================================================
-# Backward Compatibility Section (for legacy loop / core validation)
-# ==============================================================================
-
+# Temperature alias for liquid sodium domain checking
 validate_liquid_sodium_temperature = validate_heat_pipe_temperature
 validate_temperature = validate_heat_pipe_temperature
-
-
-def validate_thermal_power(power_mwth: Any) -> float:
-    """Legacy validator for core-scale thermal power [MWth]."""
-    p = _validate_numeric(power_mwth, "power_mwth")
-    if p <= 0.0:
-        raise DomainBoundaryError(
-            f"Thermal power must be strictly positive (> 0 MWth). Got: {p}"
-        )
-    return p
-
-
-def validate_mass_flow(flow_kg_s: Any) -> float:
-    """Legacy validator for loop-scale mass flow rate [kg/s]."""
-    m = _validate_numeric(flow_kg_s, "flow_kg_s")
-    if m <= 0.0:
-        raise DomainBoundaryError(
-            f"Mass flow rate must be strictly positive (> 0 kg/s). Got: {m}"
-        )
-    return m
-
-
-def validate_core_inputs(
-    power_mwth: Any, flow_kg_s: Any, inlet_temp_c: Any
-) -> tuple[float, float, float]:
-    """Legacy composite validator for core-scale inputs."""
-    p = validate_thermal_power(power_mwth)
-    m = validate_mass_flow(flow_kg_s)
-    t = validate_heat_pipe_temperature(inlet_temp_c)
-    return p, m, t

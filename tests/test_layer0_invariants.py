@@ -1,29 +1,28 @@
 import math
+
 import pytest
+
 from sfr_mcp.exceptions import DomainBoundaryError
 from sfr_mcp.layer0_invariants import (
     ABSOLUTE_ZERO_TEMP_C,
-    SODIUM_SOLIDUS_MELT_TEMP_C,
-    SODIUM_ATMOSPHERIC_BOIL_TEMP_C,
-    HEAT_PIPE_MAX_POWER_KW,
-    NUMERICAL_BOUNDARY_EPSILON,
-    HEAT_PIPE_CORRIDOR_MIN_TEMP_C,
+    HEAT_PIPE_CORRIDOR_MAX_POWER_W,
     HEAT_PIPE_CORRIDOR_MAX_TEMP_C,
     HEAT_PIPE_CORRIDOR_MIN_POWER_W,
-    HEAT_PIPE_CORRIDOR_MAX_POWER_W,
-    validate_real_temperature,
-    validate_heat_pipe_temperature,
-    validate_heat_pipe_power,
+    HEAT_PIPE_CORRIDOR_MIN_TEMP_C,
+    HEAT_PIPE_MAX_POWER_KW,
+    NUMERICAL_BOUNDARY_EPSILON,
+    SODIUM_ATMOSPHERIC_BOIL_TEMP_C,
+    SODIUM_SOLIDUS_MELT_TEMP_C,
     validate_heat_pipe_channel_inputs,
-    validate_single_channel_temperature,
-    validate_single_channel_power,
-    validate_single_channel_inputs,
-    # Backward compatibility aliases
-    validate_thermal_power,
-    validate_mass_flow,
+    validate_heat_pipe_power,
+    validate_heat_pipe_temperature,
+    # Temperature aliases
     validate_liquid_sodium_temperature,
+    validate_real_temperature,
+    validate_single_channel_inputs,
+    validate_single_channel_power,
+    validate_single_channel_temperature,
     validate_temperature,
-    validate_core_inputs,
 )
 
 
@@ -152,14 +151,8 @@ class TestBackwardCompatibilityAliases:
     """Ensure older pool/core aliases remain fully functional."""
 
     def test_legacy_aliases(self):
-        assert validate_thermal_power(50.0) == 50.0
-        assert validate_mass_flow(15.0) == 15.0
         assert validate_liquid_sodium_temperature(550.0) == 550.0
         assert validate_temperature(550.0) == 550.0
-        p, m, t = validate_core_inputs(power_mwth=4.0, flow_kg_s=15.0, inlet_temp_c=550.0)
-        assert p == 4.0
-        assert m == 15.0
-        assert t == 550.0
 
 
 class TestSingleChannelCorridor:

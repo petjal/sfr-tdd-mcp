@@ -5,16 +5,19 @@ Exposes verified Layer 0, Layer 1, and Layer 2 liquid metal heat pipe physics
 via the standardized Model Context Protocol (FastMCP).
 """
 
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Annotated
+
 from mcp.server.fastmcp import FastMCP
+from pydantic import BaseModel, ConfigDict, Field
+
 from sfr_mcp.layer0_invariants import validate_single_channel_inputs
 from sfr_mcp.layer2_heat_pipe_solver import (
-    calculate_mass_flow,
+    calculate_capillary_margin,
     calculate_channel_temperatures,
     calculate_effective_channel_conductivity,
-    calculate_capillary_margin,
-    calculate_vapor_reynolds_number,
+    calculate_mass_flow,
     calculate_vapor_mach_number,
+    calculate_vapor_reynolds_number,
 )
 
 mcp = FastMCP("sfr-heatpipe-mcp")
@@ -78,7 +81,24 @@ class HeatPipeAnalysisResult(BaseModel):
 
 
 @mcp.tool()
-def calculate_heatpipe_heat_transfer(power_w: float, temp_c: float) -> HeatPipeAnalysisResult:
+def calculate_heatpipe_heat_transfer(
+    power_w: Annotated[
+        float,
+        Field(
+            ge=50.0,
+            le=750.0,
+            description="Applied thermal heat load in Watts [50.0 W to 750.0 W]",
+        ),
+    ],
+    temp_c: Annotated[
+        float,
+        Field(
+            ge=625.0,
+            le=750.0,
+            description="Vapor saturation temperature in degrees Celsius [625.0 C to 750.0 C]",
+        ),
+    ],
+) -> HeatPipeAnalysisResult:
     """
     Calculate high-precision steady-state heat transfer and capillary limits for a single sodium heat pipe.
 

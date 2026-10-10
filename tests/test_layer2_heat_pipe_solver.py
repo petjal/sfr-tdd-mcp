@@ -1,26 +1,28 @@
 import math
+
 import pytest
+
 from sfr_mcp.exceptions import DomainBoundaryError
 from sfr_mcp.layer2_heat_pipe_solver import (
-    CHANNEL_OUTER_DIAMETER_M,
-    CHANNEL_INNER_DIAMETER_M,
-    CHANNEL_VAPOR_DIAMETER_M,
     CHANNEL_EFFECTIVE_LENGTH_M,
-    CHANNEL_WICK_PORE_RADIUS_M,
+    CHANNEL_INNER_DIAMETER_M,
+    CHANNEL_OUTER_DIAMETER_M,
+    CHANNEL_VAPOR_DIAMETER_M,
+    CHANNEL_WICK_PARTICLE_DIAMETER_M,
     CHANNEL_WICK_PERMEABILITY_M2,
-    calculate_mass_flow,
+    CHANNEL_WICK_PORE_RADIUS_M,
     calculate_capillary_head_max,
-    calculate_liquid_darcy_drop,
-    calculate_vapor_pressure_drop,
-    calculate_total_pressure_drop,
     calculate_capillary_margin,
-    calculate_vapor_reynolds_number,
-    calculate_effective_wick_conductivity,
-    calculate_thermal_resistance_network,
     calculate_channel_temperatures,
     calculate_effective_channel_conductivity,
-    CHANNEL_WICK_PARTICLE_DIAMETER_M,
+    calculate_effective_wick_conductivity,
+    calculate_liquid_darcy_drop,
+    calculate_mass_flow,
+    calculate_thermal_resistance_network,
+    calculate_total_pressure_drop,
     calculate_vapor_mach_number,
+    calculate_vapor_pressure_drop,
+    calculate_vapor_reynolds_number,
     regression_anchor_500w_650c,
 )
 

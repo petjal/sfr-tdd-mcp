@@ -1,19 +1,18 @@
-import math
 import pytest
+
 from sfr_mcp.exceptions import DomainBoundaryError
 from sfr_mcp.layer1_sodium_properties import (
+    CELSIUS_TO_KELVIN_OFFSET,
     celsius_to_kelvin,
-    liquid_sodium_mass_density,
     liquid_sodium_density,
-    liquid_sodium_specific_heat,
-    liquid_sodium_surface_tension,
     liquid_sodium_dynamic_viscosity,
+    liquid_sodium_mass_density,
+    liquid_sodium_surface_tension,
     liquid_sodium_thermal_conductivity,
-    sodium_saturated_vapor_pressure,
     sodium_enthalpy_of_vaporization,
     sodium_saturated_vapor_density,
+    sodium_saturated_vapor_pressure,
     sodium_vapor_dynamic_viscosity,
-    CELSIUS_TO_KELVIN_OFFSET,
 )
 
 
@@ -132,22 +131,20 @@ class TestANLLiquidSodiumThermophysicalParity:
     """
 
     @pytest.mark.parametrize(
-        "temp_c, exp_cp, exp_sigma, exp_mu_l, exp_kl",
+        "temp_c, exp_sigma, exp_mu_l, exp_kl",
         [
-            (625.0, 1252.25, 0.14583, 2.0100e-4, 58.421),
-            (650.0, 1251.53, 0.14327, 1.9552e-4, 57.354),
-            (675.0, 1251.35, 0.14073, 1.9041e-4, 56.315),
-            (700.0, 1251.72, 0.13818, 1.8564e-4, 55.302),
-            (750.0, 1254.08, 0.13311, 1.7697e-4, 53.354),
+            (625.0, 0.14583, 2.0100e-4, 58.421),
+            (650.0, 0.14327, 1.9552e-4, 57.354),
+            (675.0, 0.14073, 1.9041e-4, 56.315),
+            (700.0, 0.13818, 1.8564e-4, 55.302),
+            (750.0, 0.13311, 1.7697e-4, 53.354),
         ],
     )
-    def test_anl_properties_parity(self, temp_c, exp_cp, exp_sigma, exp_mu_l, exp_kl):
-        cp = liquid_sodium_specific_heat(temp_c)
+    def test_anl_properties_parity(self, temp_c, exp_sigma, exp_mu_l, exp_kl):
         sigma = liquid_sodium_surface_tension(temp_c)
         mu_l = liquid_sodium_dynamic_viscosity(temp_c)
         kl = liquid_sodium_thermal_conductivity(temp_c)
 
-        assert cp == pytest.approx(exp_cp, rel=5e-4)  # <= 0.05%
         assert sigma == pytest.approx(exp_sigma, rel=5e-4)  # <= 0.05%
         assert mu_l == pytest.approx(exp_mu_l, rel=5e-4)  # <= 0.05%
         assert kl == pytest.approx(exp_kl, rel=5e-4)  # <= 0.05%
@@ -166,8 +163,6 @@ class TestANLLiquidSodiumThermophysicalParity:
 
     @pytest.mark.parametrize("bad_val", [float("nan"), float("inf"), float("-inf"), True, False, "650", None, 50.0, 950.0])
     def test_liquid_properties_reject_bad_inputs(self, bad_val):
-        with pytest.raises(DomainBoundaryError):
-            liquid_sodium_specific_heat(bad_val)
         with pytest.raises(DomainBoundaryError):
             liquid_sodium_surface_tension(bad_val)
         with pytest.raises(DomainBoundaryError):

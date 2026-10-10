@@ -6,8 +6,10 @@ build-backend = "hatchling.build"
 name = "sfr-mcp"
 version = "0.1.0"
 description = "Stratified Pure-TDD Sodium Fast Reactor Physics Engine"
-requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "pydantic>=2.0.0",
+    "mcp>=1.0.0",
+]
 
 [project.optional-dependencies]
 dev = [
